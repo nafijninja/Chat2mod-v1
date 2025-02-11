@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Join or Create Group</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+      background-color: #f5f7fb;
+    }
+
+    #modal-container {
+      width: 400px;
+      padding: 20px;
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+      text-align: center;
+    }
+
+    input[type="text"] {
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 20px;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+    }
+
+    button {
+      width: 100%;
+      padding: 12px;
+      background: #007bff;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #0056b3;
+    }
+
+    #create-group-btn {
+      background: #28a745;
+    }
+
+    #create-group-btn:hover {
+      background: #218838;
+    }
+
+    h3 {
+      margin-bottom: 20px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div id="modal-container">
+    <h3>Join or Create a Group</h3>
+    <input type="text" id="group-code-input" placeholder="Enter Group Code">
+    <button id="join-group-btn">Join Group</button>
+
+    <p>or</p>
+
+    <button id="create-group-btn">Create New Group</button>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+
+    // Button to handle group join
+    document.getElementById('join-group-btn').addEventListener('click', function () {
+      const groupCode = document.getElementById('group-code-input').value.trim();
+      if (groupCode) {
+        socket.emit('join group', groupCode);
+      } else {
+        alert('Please enter a valid group code.');
+      }
+    });
+
+    // Button to handle group creation
+    document.getElementById('create-group-btn').addEventListener('click', function () {
+      const groupCode = prompt('Enter a new group code:');
+      if (groupCode) {
+        socket.emit('create group', groupCode);
+      } else {
+        alert('Please provide a group code.');
+      }
+    });
+
+    // Handle successful group join
+    socket.on('group join success', function (data) {
+      window.location.href = `/group/${data.groupCode}`;
+    });
+
+    // Handle group creation success
+    socket.on('group creation success', function (data) {
+      alert(data.message);
+      window.location.href = `/group/${data.groupCode}`;
+    });
+
+    // Handle errors
+    socket.on('group join failed', function (data) {
+      alert(data.message);
+    });
+    socket.on('group creation failed', function (data) {
+      alert(data.message);
+    });
+  </script>
+</body>
+
+</html>
