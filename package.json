@@ -4,8 +4,10 @@
   "description": "A clone of a messaging app with chat, file upload, reactions, and more.",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon server.js",
+    "start": "concurrently \"node server.js\" \"node server1.js\"", // Run both servers
+    "dev": "concurrently \"nodemon server.js\" \"nodemon server1.js\"", // Dev mode with nodemon
+    "start-main": "node server.js", // Start main server only
+    "start-private": "node server1.js", // Start private server only
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
@@ -23,6 +25,7 @@
   "dependencies": {
     "archiver": "^5.3.0",
     "axios": "^1.0.0",
+    "concurrently": "^8.2.1", // Add concurrently
     "cors": "^2.8.5",
     "express": "^4.17.3",
     "moment": "^2.29.1",
@@ -36,4 +39,3 @@
   "devDependencies": {
     "nodemon": "^2.0.19"
   }
-}
