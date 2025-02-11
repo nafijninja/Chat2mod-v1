@@ -1,99 +1,61 @@
+require('dotenv').config();
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
 const mongoose = require('mongoose');
+const bodyParser = require('body-parser');
+const Group = require('./models/Group');
+
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server);
 
-const port = 3000;
-const mongoURI = 'mongodb://localhost:27017/chat-app'; // Change this to your MongoDB URI
+app.use(bodyParser.json());
+app.use(express.static('public'));
 
-// MongoDB Models
-const Group = require('./models/group');
-const Message = require('./models/message');
+mongoose.connect(process.env.MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true })
+  .then(() => console.log("Connected to MongoDB"))
+  .catch((err) => console.error("Error connecting to MongoDB:", err));
 
-// Middleware to serve static files (like your private.html)
-app.use(express.static('public')); // Ensure your private.html is inside a folder named "public"
-
-// Connect to MongoDB
-mongoose.connect(mongoURI, { useNewUrlParser: true, useUnifiedTopology: true })
-  .then(() => console.log('MongoDB connected'))
-  .catch((err) => console.error('MongoDB connection error: ', err));
-
-// Handle group creation
+// Handle message sending
 io.on('connection', (socket) => {
-  let currentGroupCode = '';
+  console.log('User connected');
 
-  // Join group or create new group
-  socket.on('join group', (groupCode, callback) => {
-    Group.findOne({ code: groupCode }, (err, group) => {
-      if (err || !group) {
-        callback({ success: false });
-      } else {
-        socket.join(groupCode);
-        currentGroupCode = groupCode;
-        callback({ success: true });
-      }
-    });
+  socket.on('join group', (groupId) => {
+    socket.join(groupId);
   });
 
-  socket.on('create group', (groupCode, callback) => {
-    const newGroup = new Group({ code: groupCode });
-
-    newGroup.save((err, savedGroup) => {
-      if (err) {
-        callback({ success: false });
-      } else {
-        socket.join(savedGroup.code);
-        currentGroupCode = savedGroup.code;
-        callback({ success: true });
-      }
-    });
+  socket.on('send message', (data) => {
+    const { groupId, text } = data;
+    io.to(groupId).emit('chat message', { text });
   });
 
-  // Handle sending chat messages
-  socket.on('chat message', (data) => {
-    const newMessage = new Message({
-      text: data.text,
-      groupCode: currentGroupCode,
-      sender: socket.id, // Store socket id as sender
-    });
-
-    newMessage.save((err, savedMessage) => {
-      if (err) return console.error('Message save error: ', err);
-      
-      // Emit the message to everyone in the group
-      io.to(currentGroupCode).emit('chat message', {
-        user: socket.id, // Sending socket id for simplicity; you can use a username
-        text: data.text,
-      });
-    });
-  });
-
-  // Handle reactions
-  socket.on('reaction', (reactionData) => {
-    io.to(currentGroupCode).emit('reaction', {
-      user: socket.id,
-      reaction: reactionData.reaction,
-    });
-  });
-
-  // Typing indicator
-  socket.on('typing', (data) => {
-    socket.broadcast.to(currentGroupCode).emit('typing');
-  });
-
-  // Disconnecting from group
   socket.on('disconnect', () => {
-    if (currentGroupCode) {
-      socket.leave(currentGroupCode);
-      console.log(`User disconnected from group: ${currentGroupCode}`);
-    }
+    console.log('User disconnected');
   });
 });
 
-// Start the server
-server.listen(port, () => {
-  console.log(`Server running on port ${port}`);
+// Group creation and joining routes
+app.post('/create-group', async (req, res) => {
+  const { groupName, groupCode } = req.body;
+  const group = new Group({ groupName, groupCode, users: [] });
+  await group.save();
+  res.json({ groupId: group._id });
 });
+
+app.post('/join-group', async (req, res) => {
+  const { groupCode } = req.body;
+  const group = await Group.findOne({ groupCode });
+
+  if (!group) return res.status(404).json({ message: 'Group not found' });
+
+  group.users.push('someUser');  // Modify to add real user
+  await group.save();
+
+  res.json({ groupId: group._id });
+});
+
+server.listen(3000, () => {
+  console.log('Server running on port 3000');
+});
+
