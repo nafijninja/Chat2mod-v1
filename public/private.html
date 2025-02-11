@@ -1,278 +1,150 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Private Chat</title>
+  <link rel="stylesheet" href="styles.css">
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      background-color: #f5f5f5;
-      margin: 0;
-      padding: 0;
-    }
-
-    .container {
-      max-width: 600px;
-      margin: 50px auto;
-      background-color: #fff;
-      padding: 20px;
-      border-radius: 10px;
-      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-    }
-
-    .btn {
-      background-color: #007bff;
-      color: white;
-      padding: 10px 20px;
-      border: none;
-      border-radius: 5px;
-      cursor: pointer;
-      font-size: 16px;
-    }
-
-    .btn:hover {
-      background-color: #0056b3;
-    }
-
-    #messages {
-      max-height: 300px;
-      overflow-y: auto;
-      margin-bottom: 10px;
-      border: 1px solid #ddd;
-      padding: 10px;
-      border-radius: 10px;
-    }
-
-    #input-container {
-      display: flex;
-      margin-top: 10px;
-    }
-
-    #input-container input {
-      flex: 1;
-      padding: 10px;
-      border: 1px solid #ddd;
-      border-radius: 5px;
-      font-size: 16px;
-    }
-
-    #input-container button {
-      padding: 10px;
-      border: 1px solid #ddd;
-      background-color: #007bff;
-      color: white;
-      border-radius: 5px;
-      cursor: pointer;
-      font-size: 16px;
-    }
-
-    #input-container button:hover {
-      background-color: #0056b3;
-    }
-
-    .settings-modal {
-      display: none;
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background-color: rgba(0, 0, 0, 0.5);
-      justify-content: center;
-      align-items: center;
-      color: #fff;
-      z-index: 1000;
-    }
-
-    .settings-content {
-      background-color: #333;
-      padding: 20px;
-      border-radius: 10px;
-      width: 300px;
-    }
-
-    .settings-content input {
-      padding: 10px;
-      margin-bottom: 10px;
-      width: 100%;
-      font-size: 16px;
-    }
-
-    .settings-content button {
-      background-color: #007bff;
-      color: white;
-      padding: 10px;
-      width: 100%;
-      border: none;
-      border-radius: 5px;
-    }
-
-    .settings-content button:hover {
-      background-color: #0056b3;
+    .dark-mode {
+      background-color: #121212;
+      color: #ffffff;
     }
   </style>
 </head>
 <body>
-
-  <div class="container">
-    <h2>Private Chat</h2>
-
-    <div id="messages"></div>
-
-    <div id="input-container">
-      <input type="text" id="message" placeholder="Type a message..." />
+  <div class="chat-container">
+    <h1>Private Chat</h1>
+    <button onclick="toggleDarkMode()">Toggle Dark Mode</button>
+    <div id="room-entry">
+      <input type="text" id="room-id" placeholder="Enter Room ID">
+      <button onclick="joinRoom()">Enter Room</button>
+      <p>Don't have a room? <button onclick="createRoom()">Create One</button></p>
+    </div>
+    <div id="chat-section" class="hidden">
+      <div class="messages" id="messages"></div>
+      <input type="text" id="input" placeholder="Type a message">
       <button onclick="sendMessage()">Send</button>
-    </div>
-
-    <div>
-      <button id="create-group-btn" class="btn" onclick="showCreateGroupForm()">Create Group</button>
-      <button id="join-group-btn" class="btn" onclick="showJoinGroupForm()">Join Group</button>
-    </div>
-
-    <!-- Group creation form -->
-    <div id="create-group-form" style="display:none; margin-top: 10px;">
-      <input type="text" id="new-group-name" placeholder="Enter Group Name" />
-      <input type="text" id="new-group-code" placeholder="Enter Group Code" />
-      <button class="btn" onclick="createGroup()">Create Group</button>
-    </div>
-
-    <!-- Join Group form -->
-    <div id="join-group-form" style="display:none; margin-top: 10px;">
-      <input type="text" id="group-code" placeholder="Enter Group Code to Join" />
-      <button class="btn" onclick="joinGroup()">Join Group</button>
-    </div>
-
-    <!-- Settings Button -->
-    <button class="btn" onclick="openSettings()">Settings</button>
-
-    <!-- Settings Modal -->
-    <div class="settings-modal" id="settings-modal">
-      <div class="settings-content">
-        <h3>Settings</h3>
-        <input type="text" id="username" placeholder="Enter Username" />
-        <select id="theme">
-          <option value="light">Light Theme</option>
-          <option value="dark">Dark Theme</option>
-        </select>
-        <button class="btn" onclick="saveSettings()">Save Settings</button>
-      </div>
+      <input type="file" id="file-input">
+      <button onclick="uploadFile()">Upload File</button>
     </div>
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
   <script>
-    const socket = io();
-    let currentGroup = null;
-    let currentUsername = '';
-    let currentTheme = 'light'; // Default theme
+    const socket = io('http://localhost:8081');
+    let currentRoomId = null;
 
-    // Display a message
-    function displayMessage(msg) {
-      const messageElement = document.createElement('div');
-      messageElement.textContent = msg.text;
-      document.getElementById('messages').appendChild(messageElement);
-    }
-
-    socket.on('chat message', displayMessage);
-
-    // Send a message
-    function sendMessage() {
-      const messageInput = document.getElementById('message');
-      const msg = messageInput.value.trim();
-      if (msg && currentGroup) {
-        socket.emit('send message', { groupId: currentGroup, text: msg });
-        messageInput.value = '';
-      }
-    }
-
-    // Show Create Group Form
-    function showCreateGroupForm() {
-      document.getElementById('create-group-form').style.display = 'block';
-      document.getElementById('join-group-form').style.display = 'none';
-    }
-
-    // Create Group
-    function createGroup() {
-      const groupName = document.getElementById('new-group-name').value;
-      const groupCode = document.getElementById('new-group-code').value;
-
-      if (groupName && groupCode) {
-        fetch('/create-group', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ groupName, groupCode })
-        })
-        .then(response => response.json())
-        .then(data => {
-          currentGroup = data.groupId;
-          alert('Group created successfully!');
-          showGroupChat();
-        });
-      }
-    }
-
-    // Show Join Group Form
-    function showJoinGroupForm() {
-      document.getElementById('join-group-form').style.display = 'block';
-      document.getElementById('create-group-form').style.display = 'none';
-    }
-
-    // Join Group
-    function joinGroup() {
-      const groupCode = document.getElementById('group-code').value;
-
-      fetch('/join-group', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ groupCode })
-      })
-      .then(response => response.json())
-      .then(data => {
-        currentGroup = data.groupId;
-        alert('Joined group successfully!');
-        showGroupChat();
-      });
-    }
-
-    // Show group chat
-    function showGroupChat() {
-      document.getElementById('create-group-form').style.display = 'none';
-      document.getElementById('join-group-form').style.display = 'none';
-      socket.emit('join group', currentGroup);
-    }
-
-    // Open Settings Modal
-    function openSettings() {
-      document.getElementById('settings-modal').style.display = 'flex';
-    }
-
-    // Save Settings
-    function saveSettings() {
-      currentUsername = document.getElementById('username').value || 'Anonymous';
-      currentTheme = document.getElementById('theme').value;
-
-      // Apply theme changes
-      if (currentTheme === 'dark') {
-        document.body.style.backgroundColor = '#333';
-        document.body.style.color = '#fff';
+    // Join a private room
+    const joinRoom = () => {
+      const roomId = document.getElementById('room-id').value;
+      if (roomId) {
+        currentRoomId = roomId;
+        socket.emit('join private', { roomId, username: 'User' });
+        showChatSection();
       } else {
-        document.body.style.backgroundColor = '#f5f5f5';
-        document.body.style.color = '#000';
+        alert('Please enter a room ID.');
       }
+    };
 
-      // Close settings modal
-      document.getElementById('settings-modal').style.display = 'none';
+    // Create a new room
+    const createRoom = () => {
+      const roomId = Math.random().toString(36).substring(7); // Random room ID
+      currentRoomId = roomId;
+      document.getElementById('room-id').value = roomId;
+      socket.emit('join private', { roomId, username: 'User' });
+      showChatSection();
+    };
 
-      alert('Settings saved!');
-    }
+    // Show the chat section
+    const showChatSection = () => {
+      document.getElementById('room-entry').classList.add('hidden');
+      document.getElementById('chat-section').classList.remove('hidden');
+    };
 
-    // Quick reactions (like 👍, 👎)
-    function sendQuickReaction(reaction) {
-      if (currentGroup) {
-        socket.emit('send message', { groupId: currentGroup, text: reaction });
+    // Send a private message
+    const sendMessage = () => {
+      const input = document.getElementById('input');
+      const message = input.value;
+      if (currentRoomId && message) {
+        socket.emit('private message', {
+          roomId: currentRoomId,
+          sender: 'You',
+          message: message,
+        });
+        input.value = '';
       }
-    }
+    };
+
+    // Upload a file
+    const uploadFile = () => {
+      const fileInput = document.getElementById('file-input');
+      const file = fileInput.files[0];
+      const formData = new FormData();
+      formData.append('file', file);
+
+      fetch('/upload', {
+        method: 'POST',
+        body: formData,
+      })
+        .then((response) => response.json())
+        .then((data) => {
+          socket.emit('private message', {
+            roomId: currentRoomId,
+            sender: 'You',
+            message: `File uploaded: <a href="${data.fileUrl}" target="_blank">${file.name}</a>`,
+          });
+        });
+    };
+
+    // Typing indicator
+    const input = document.getElementById('input');
+    input.addEventListener('input', () => {
+      socket.emit('typing', { roomId: currentRoomId, username: 'You' });
+    });
+
+    // Toggle dark mode
+    const toggleDarkMode = () => {
+      document.body.classList.toggle('dark-mode');
+    };
+
+    // Receive private messages
+    socket.on('private message', (data) => {
+      const messages = document.getElementById('messages');
+      messages.innerHTML += `<div><strong>${data.sender}:</strong> ${data.message}</div>`;
+    });
+
+    // Message reactions
+    socket.on('message reacted', (data) => {
+      const messageElement = document.getElementById(data.messageId);
+      if (messageElement) {
+        messageElement.innerHTML += `<span class="reaction">${data.reaction}</span>`;
+      }
+    });
+
+    // Typing indicator
+    socket.on('user typing', (data) => {
+      console.log(`${data.username} is typing...`);
+    });
+
+    // Message edited
+    socket.on('message edited', (data) => {
+      const messageElement = document.getElementById(data.messageId);
+      if (messageElement) {
+        messageElement.innerHTML = `<strong>${data.sender}:</strong> ${data.newMessage} (edited)`;
+      }
+    });
+
+    // Message deleted
+    socket.on('message deleted', (data) => {
+      const messageElement = document.getElementById(data.messageId);
+      if (messageElement) {
+        messageElement.remove();
+      }
+    });
+
+    // Message read
+    socket.on('message read', (data) => {
+      console.log(`${data.username} read the message`);
+    });
   </script>
 </body>
-</html>
+  </html>
