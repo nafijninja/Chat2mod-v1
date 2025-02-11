@@ -4,210 +4,274 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Messenger Clone</title>
+    <title>Group Chat</title>
     <style>
+        /* Styles for the page */
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #f5f7fb;
+            font-family: Arial, sans-serif;
             margin: 0;
+            padding: 0;
             display: flex;
             justify-content: center;
             align-items: center;
             height: 100vh;
-            overflow: hidden;
-            transition: background-color 0.3s ease;
+            background-color: #f5f7fb;
         }
 
-        #group-container {
-            width: 100%;
-            max-width: 480px;
-            height: 500px;
-            background: white;
-            border-radius: 16px;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-            display: flex;
-            flex-direction: column;
-            position: relative;
-            overflow: hidden;
-            transition: transform 0.3s ease;
-        }
-
-        #join-group-form {
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            height: 100%;
+        .container {
+            text-align: center;
+            width: 300px;
             padding: 20px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
         }
 
-        #join-group-form input {
-            padding: 12px;
-            margin: 10px;
+        input[type="text"] {
             width: 80%;
-            border-radius: 10px;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
             border: 1px solid #ccc;
         }
 
-        #join-group-form button {
+        button {
             padding: 10px 20px;
-            border-radius: 10px;
+            border-radius: 5px;
+            border: none;
             background-color: #007bff;
             color: white;
-            border: none;
             cursor: pointer;
-            margin: 10px;
+            transition: background 0.3s;
         }
 
-        #join-group-form button:hover {
+        button:hover {
             background-color: #0056b3;
         }
 
-        #chat-container {
-            display: none;
-            flex-direction: column;
-            height: 100%;
+        .option {
+            margin-top: 10px;
         }
 
-        #messages {
-            flex: 1;
-            overflow-y: auto;
+        .create-group {
+            margin-top: 20px;
+            background-color: #28a745;
+        }
+
+        .create-group:hover {
+            background-color: #218838;
+        }
+
+        .chat-container {
+            width: 100%;
+            max-width: 600px;
+            margin: 20px auto;
             padding: 20px;
-            background: #f8f9fa;
-            border-radius: 15px;
-            margin: 10px;
-            box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.05);
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .messages {
+            max-height: 400px;
+            overflow-y: scroll;
+            border-bottom: 1px solid #ddd;
+            margin-bottom: 10px;
         }
 
         .message {
-            background: #ffffff;
-            padding: 12px 18px;
-            margin: 12px 0;
-            border-radius: 20px;
-            max-width: 80%;
-            word-wrap: break-word;
-            position: relative;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            padding: 5px;
+            border-radius: 4px;
+            margin: 5px 0;
+            background-color: #f1f1f1;
         }
 
-        #input-area {
+        .input-container {
             display: flex;
-            padding: 15px 20px;
-            background: #ffffff;
-            border-top: 1px solid #ddd;
-            align-items: center;
+            justify-content: space-between;
         }
 
-        #input-area input[type="text"] {
-            width: 100%;
-            padding: 12px;
-            margin-right: 10px;
-            border-radius: 30px;
-            border: 1px solid #ccc;
+        .input-container input {
+            width: 80%;
+        }
+
+        .input-container button {
+            width: 18%;
+        }
+
+        /* Quick Reactions */
+        .reactions {
+            display: flex;
+            margin: 5px 0;
+            justify-content: flex-start;
+        }
+
+        .reaction-button {
+            padding: 5px;
+            margin: 0 5px;
+            cursor: pointer;
             font-size: 16px;
         }
 
-        #input-area button {
-            background: #007bff;
-            border: none;
-            padding: 12px;
-            border-radius: 50%;
-            color: #ffffff;
-            font-size: 22px;
-            cursor: pointer;
-        }
-
-        #input-area button:hover {
-            background: #0056b3;
+        .theme-button {
+            margin-top: 20px;
         }
     </style>
 </head>
 
 <body>
-    <div id="group-container">
-        <!-- Join or create group form -->
-        <div id="join-group-form">
-            <h2>Enter Group Code</h2>
-            <input type="text" id="group-code" placeholder="Enter group code">
-            <button onclick="joinGroup()">Join Group</button>
-            <button onclick="createGroup()">Create New Group</button>
+    <div class="container" id="join-container">
+        <h2>Join or Create a Group</h2>
+        <input type="text" id="group-code" placeholder="Enter group code">
+        <button onclick="joinGroup()">Join Group</button>
+        <div class="option">
+            <button onclick="createGroup()" class="create-group">Create Group</button>
+        </div>
+    </div>
+
+    <div class="chat-container" id="chat-container" style="display: none;">
+        <h3 id="group-name">Group Chat</h3>
+        <div id="messages" class="messages"></div>
+
+        <!-- Quick Reactions -->
+        <div class="reactions" id="reaction-container"></div>
+
+        <!-- Message Input -->
+        <div class="input-container">
+            <input type="text" id="message" placeholder="Type a message..." oninput="showTypingIndicator()">
+            <button onclick="sendMessage()">Send</button>
         </div>
 
-        <!-- Chat container -->
-        <div id="chat-container">
-            <div id="messages"></div>
+        <!-- Typing Indicator -->
+        <div id="typing-indicator" style="display:none;">Someone is typing...</div>
 
-            <div id="input-area">
-                <input type="text" id="message" placeholder="Type a message...">
-                <button onclick="sendMessage()">Send</button>
-            </div>
-        </div>
+        <!-- Theme Button -->
+        <button class="theme-button" onclick="toggleTheme()">Toggle Dark Mode</button>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
         const socket = io();
-        let groupId = localStorage.getItem('groupId') || '';
-        let username = localStorage.getItem('username') || 'Anonymous';
+        let currentGroupCode = '';
+        let isInGroup = false;
+        let userTyping = false;
+        let currentTheme = 'light';
 
-        // Fetch messages for the group if joined
-        if (groupId) {
-            fetch(`/group/${groupId}/messages`)
-                .then(response => response.json())
-                .then(messages => {
-                    messages.forEach(msg => displayMessage(msg));
-                });
-        }
-
+        // Handle user joining a group
         function joinGroup() {
-            const groupCode = document.getElementById('group-code').value.trim();
-            if (groupCode) {
-                fetch(`/join-group/${groupCode}`, { method: 'POST' })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            groupId = data.groupId;
-                            localStorage.setItem('groupId', groupId);
-                            document.getElementById('join-group-form').style.display = 'none';
-                            document.getElementById('chat-container').style.display = 'flex';
-                            socket.emit('join group', { groupId, username });
-                        } else {
-                            alert('Invalid group code');
-                        }
-                    });
+            const groupCode = document.getElementById('group-code').value;
+            if (groupCode.trim()) {
+                socket.emit('join group', groupCode, function (response) {
+                    if (response.success) {
+                        // Hide the join/create options
+                        document.getElementById('join-container').style.display = 'none';
+                        document.getElementById('chat-container').style.display = 'block';
+                        document.getElementById('group-name').textContent = `Group: ${groupCode}`;
+                        currentGroupCode = groupCode;
+                        isInGroup = true;
+                    } else {
+                        alert('Group not found or invalid group code.');
+                    }
+                });
             }
         }
 
+        // Handle creating a new group
         function createGroup() {
-            fetch('/create-group', { method: 'POST' })
-                .then(response => response.json())
-                .then(data => {
-                    groupId = data.groupId;
-                    localStorage.setItem('groupId', groupId);
-                    document.getElementById('join-group-form').style.display = 'none';
-                    document.getElementById('chat-container').style.display = 'flex';
-                    socket.emit('create group', { groupId, username });
+            const groupCode = prompt('Enter a code for your new group:');
+            if (groupCode && groupCode.trim()) {
+                socket.emit('create group', groupCode, function (response) {
+                    if (response.success) {
+                        // Hide the join/create options
+                        document.getElementById('join-container').style.display = 'none';
+                        document.getElementById('chat-container').style.display = 'block';
+                        document.getElementById('group-name').textContent = `Group: ${groupCode}`;
+                        currentGroupCode = groupCode;
+                        isInGroup = true;
+                    } else {
+                        alert('Group creation failed, please try again.');
+                    }
                 });
+            }
         }
 
+        // Send a message to the group
         function sendMessage() {
             const messageInput = document.getElementById('message');
-            const msg = messageInput.value.trim();
-            if (msg) {
-                socket.emit('chat message', { text: msg, user: username, groupId });
+            const message = messageInput.value.trim();
+            if (message && isInGroup) {
+                socket.emit('chat message', { text: message, groupCode: currentGroupCode });
                 messageInput.value = '';
             }
         }
 
-        function displayMessage(msg) {
-            const messagesDiv = document.getElementById('messages');
-            const messageElement = document.createElement('div');
-            messageElement.classList.add('message');
-            messageElement.innerHTML = `<strong>${msg.user}:</strong> ${msg.text}`;
-            messagesDiv.appendChild(messageElement);
+        // Show typing indicator
+        function showTypingIndicator() {
+            if (!userTyping) {
+                socket.emit('typing', { groupCode: currentGroupCode });
+                userTyping = true;
+                setTimeout(() => { userTyping = false; }, 3000);
+            }
         }
 
-        socket.on('chat message', displayMessage);
+        // Toggle between dark and light mode
+        function toggleTheme() {
+            if (currentTheme === 'light') {
+                document.body.style.backgroundColor = '#333';
+                document.body.style.color = '#fff';
+                currentTheme = 'dark';
+            } else {
+                document.body.style.backgroundColor = '#f5f7fb';
+                document.body.style.color = '#000';
+                currentTheme = 'light';
+            }
+        }
+
+        // Handle receiving messages
+        socket.on('chat message', function (data) {
+            const messageElement = document.createElement('div');
+            messageElement.classList.add('message');
+            messageElement.textContent = `${data.user}: ${data.text}`;
+            document.getElementById('messages').appendChild(messageElement);
+            document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
+        });
+
+        // Handle typing indicator
+        socket.on('typing', function () {
+            document.getElementById('typing-indicator').style.display = 'block';
+            setTimeout(() => { document.getElementById('typing-indicator').style.display = 'none'; }, 2000);
+        });
+
+        // Handle quick reactions
+        socket.on('reaction', function (reactionData) {
+            const reactionElement = document.createElement('div');
+            reactionElement.classList.add('message');
+            reactionElement.textContent = `${reactionData.user} reacted with: ${reactionData.reaction}`;
+            document.getElementById('messages').appendChild(reactionElement);
+        });
+
+        // Add quick reactions to the message
+        function addReaction(reaction) {
+            socket.emit('reaction', { groupCode: currentGroupCode, reaction: reaction });
+        }
+
+        // Display quick reactions buttons
+        function displayReactions() {
+            const reactions = ['👍', '❤️', '😂', '😢', '😮'];
+            const reactionContainer = document.getElementById('reaction-container');
+            reactions.forEach(reaction => {
+                const button = document.createElement('button');
+                button.textContent = reaction;
+                button.classList.add('reaction-button');
+                button.onclick = () => addReaction(reaction);
+                reactionContainer.appendChild(button);
+            });
+        }
+
+        // Display the reactions when in the group chat
+        if (isInGroup) {
+            displayReactions();
+        }
     </script>
 </body>
 
