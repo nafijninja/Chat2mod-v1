@@ -1,50 +1,52 @@
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
+const cors = require('cors');
+const path = require('path');
+const fs = require('fs');
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-// Serve static files
-app.use(express.static('public'));
+app.use(cors());
+app.use(express.json());
+app.use(express.static('NAFIJ'));
 
-// Route for private chat page
-app.get('/private', (req, res) => {
-  res.sendFile(__dirname + '/public/private.html');
-});
+// Load previous messages from the file
+const PRIVATE_CHAT_FILE = path.join(__dirname, 'NAFIJ', 'private_messages.json');
 
-// Socket.IO logic for private chat
+function loadPrivateMessages() {
+    if (!fs.existsSync(PRIVATE_CHAT_FILE)) return [];
+    return JSON.parse(fs.readFileSync(PRIVATE_CHAT_FILE, 'utf8'));
+}
+
+function savePrivateMessages(messages) {
+    fs.writeFileSync(PRIVATE_CHAT_FILE, JSON.stringify(messages, null, 2));
+}
+
+// Socket.io connection
 io.on('connection', (socket) => {
-  console.log('A user connected');
+    console.log('Private Chat User Connected:', socket.id);
 
-  // Join a private room
-  socket.on('join private', (data) => {
-    const roomId = data.roomId;
-    socket.join(roomId); // Add the user to the room
-    socket.emit('private status', `Joined private room: ${roomId}`);
-  });
+    // Send previous messages to the new user
+    socket.emit('previous messages', loadPrivateMessages());
 
-  // Send a private message
-  socket.on('private message', (data) => {
-    const roomId = data.roomId;
-    const sender = data.sender;
-    const message = data.message;
-
-    // Broadcast the message ONLY to users in the same room
-    io.to(roomId).emit('private message', {
-      sender: sender,
-      message: message
+    // Handle private messages
+    socket.on('private message', (msg) => {
+        let messages = loadPrivateMessages();
+        messages.push(msg);
+        savePrivateMessages(messages);
+        io.emit('private message', msg);  // Broadcast to all users
     });
-  });
 
-  // Handle user disconnect
-  socket.on('disconnect', () => {
-    console.log('User disconnected');
-  });
+    socket.on('disconnect', () => {
+        console.log('Private Chat User Disconnected:', socket.id);
+    });
 });
 
 // Start the server
-server.listen(4000, () => {
-  console.log('Private chat server running on http://localhost:4000');
-})
+const PORT = process.env.PORT || 5001;
+server.listen(PORT, () => {
+    console.log(`Private Chat Server running on http://localhost:${PORT}`);
+});
