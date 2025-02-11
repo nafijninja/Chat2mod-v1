@@ -1,12 +1,14 @@
 require('dotenv').config(); // Load environment variables
 const express = require('express');
 const mongoose = require('mongoose');
-const http = require('http').createServer(app);
-const io = require('socket.io')(http);
+const http = require('http');
+const io = require('socket.io');
 const multer = require('multer');
 const path = require('path');
 
-const app = express();
+const app = express(); // Initialize express app
+const server = http.createServer(app); // Create HTTP server
+const socketIO = io(server); // Initialize Socket.IO
 
 // Connect to MongoDB
 mongoose.set('strictQuery', false); // Suppress deprecation warning
@@ -45,7 +47,7 @@ app.post('/upload', upload.single('file'), (req, res) => {
 });
 
 // Socket.IO logic
-io.on('connection', (socket) => {
+socketIO.on('connection', (socket) => {
   console.log('A user connected');
 
   // Join a private room
@@ -67,7 +69,7 @@ io.on('connection', (socket) => {
 
   // Send a private message
   socket.on('private message', (data) => {
-    io.to(data.roomId).emit('private message', {
+    socketIO.to(data.roomId).emit('private message', {
       sender: data.sender,
       message: data.message,
     });
@@ -75,7 +77,7 @@ io.on('connection', (socket) => {
 
   // Handle file uploads
   socket.on('file uploaded', (data) => {
-    io.to(data.roomId).emit('private message', {
+    socketIO.to(data.roomId).emit('private message', {
       sender: data.sender,
       message: `File uploaded: <a href="${data.fileUrl}" target="_blank">${data.fileName}</a>`,
     });
@@ -89,6 +91,6 @@ io.on('connection', (socket) => {
 
 // Start the server
 const PRIVATE_PORT = process.env.PRIVATE_PORT || 8081;
-http.listen(PRIVATE_PORT, () => {
+server.listen(PRIVATE_PORT, () => {
   console.log(`🚀 Private chat server is running on port ${PRIVATE_PORT}`);
 });
