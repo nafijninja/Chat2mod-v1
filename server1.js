@@ -131,6 +131,10 @@ io.on('connection', (socket) => {
   });
 });
 
+app.get('/private', (req, res) => {
+      res.sendFile(path.join(__dirname, 'public', 'private.html'));
+    });
+  
 // Start the server
 const PRIVATE_PORT = process.env.PRIVATE_PORT || 8081;
 http.listen(PRIVATE_PORT, () => {
