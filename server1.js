@@ -9,6 +9,7 @@ const path = require('path');
 const app = express();
 
 // Connect to MongoDB
+mongoose.set('strictQuery', false); // Suppress deprecation warning
 mongoose.connect(process.env.MONGO_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
