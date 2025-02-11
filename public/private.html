@@ -4,16 +4,64 @@
   <title>Private Chat</title>
   <link rel="stylesheet" href="styles.css">
   <style>
-    .dark-mode {
-      background-color: #121212;
-      color: #ffffff;
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f4f4f9;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+
+    .chat-container {
+      background-color: #fff;
+      border-radius: 10px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+      width: 400px;
+      padding: 20px;
+      text-align: center;
+    }
+
+    .messages {
+      height: 300px;
+      overflow-y: scroll;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      padding: 10px;
+      margin-bottom: 10px;
+      background-color: #f9f9f9;
+    }
+
+    input, button {
+      padding: 10px;
+      margin: 5px 0;
+      width: 100%;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      font-size: 16px;
+    }
+
+    button {
+      background-color: #007bff;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background-color: #0056b3;
+    }
+
+    .hidden {
+      display: none;
     }
   </style>
 </head>
 <body>
   <div class="chat-container">
     <h1>Private Chat</h1>
-    <button onclick="toggleDarkMode()">Toggle Dark Mode</button>
     <div id="room-entry">
       <input type="text" id="room-id" placeholder="Enter Room ID">
       <button onclick="joinRoom()">Enter Room</button>
@@ -30,7 +78,7 @@
 
   <script src="/socket.io/socket.io.js"></script>
   <script>
-    const socket = io('https://chatv1.up.railway.app');
+    const socket = io('https://chatv1.up.railway.app'); // Updated WebSocket URL
     let currentRoomId = null;
 
     // Join a private room
@@ -38,7 +86,7 @@
       const roomId = document.getElementById('room-id').value;
       if (roomId) {
         currentRoomId = roomId;
-        socket.emit('join private', { roomId, username: 'User' });
+        socket.emit('join private', { roomId, username: 'You' });
         showChatSection();
       } else {
         alert('Please enter a room ID.');
@@ -50,7 +98,7 @@
       const roomId = Math.random().toString(36).substring(7); // Random room ID
       currentRoomId = roomId;
       document.getElementById('room-id').value = roomId;
-      socket.emit('join private', { roomId, username: 'User' });
+      socket.emit('join private', { roomId, username: 'You' });
       showChatSection();
     };
 
@@ -87,23 +135,13 @@
       })
         .then((response) => response.json())
         .then((data) => {
-          socket.emit('private message', {
+          socket.emit('file uploaded', {
             roomId: currentRoomId,
             sender: 'You',
-            message: `File uploaded: <a href="${data.fileUrl}" target="_blank">${file.name}</a>`,
+            fileUrl: data.fileUrl,
+            fileName: file.name,
           });
         });
-    };
-
-    // Typing indicator
-    const input = document.getElementById('input');
-    input.addEventListener('input', () => {
-      socket.emit('typing', { roomId: currentRoomId, username: 'You' });
-    });
-
-    // Toggle dark mode
-    const toggleDarkMode = () => {
-      document.body.classList.toggle('dark-mode');
     };
 
     // Receive private messages
@@ -112,39 +150,10 @@
       messages.innerHTML += `<div><strong>${data.sender}:</strong> ${data.message}</div>`;
     });
 
-    // Message reactions
-    socket.on('message reacted', (data) => {
-      const messageElement = document.getElementById(data.messageId);
-      if (messageElement) {
-        messageElement.innerHTML += `<span class="reaction">${data.reaction}</span>`;
-      }
-    });
-
-    // Typing indicator
-    socket.on('user typing', (data) => {
-      console.log(`${data.username} is typing...`);
-    });
-
-    // Message edited
-    socket.on('message edited', (data) => {
-      const messageElement = document.getElementById(data.messageId);
-      if (messageElement) {
-        messageElement.innerHTML = `<strong>${data.sender}:</strong> ${data.newMessage} (edited)`;
-      }
-    });
-
-    // Message deleted
-    socket.on('message deleted', (data) => {
-      const messageElement = document.getElementById(data.messageId);
-      if (messageElement) {
-        messageElement.remove();
-      }
-    });
-
-    // Message read
-    socket.on('message read', (data) => {
-      console.log(`${data.username} read the message`);
+    // Room join status
+    socket.on('private status', (msg) => {
+      alert(msg);
     });
   </script>
 </body>
-  </html>
+        </html>
