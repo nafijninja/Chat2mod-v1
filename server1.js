@@ -1,103 +1,138 @@
-const express = require("express");
-const http = require("http");
-const socketIo = require("socket.io");
-const mongoose = require("mongoose");
-const cors = require("cors");
-require("dotenv").config();
+require('dotenv').config(); // Load environment variables
+const express = require('express');
+const mongoose = require('mongoose');
+const http = require('http').createServer(app);
+const io = require('socket.io')(http);
+const multer = require('multer');
+const path = require('path');
 
 const app = express();
-const server = http.createServer(app);
-const io = socketIo(server);
-
-app.use(express.json());
-app.use(cors());
 
 // Connect to MongoDB
-mongoose.set("strictQuery", false);
 mongoose.connect(process.env.MONGODB_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
-})
-  .then(() => console.log("✅ Connected to MongoDB"))
-  .catch((err) => console.error("❌ MongoDB Connection Error:", err));
-
-// Group Schema
-const groupSchema = new mongoose.Schema({
-  groupCode: String,
-  createdAt: { type: Date, default: Date.now },
 });
 
-const Group = mongoose.model("Group", groupSchema);
+// Schemas
+const userSchema = new mongoose.Schema({
+  username: String,
+  profilePicture: String,
+});
 
-// Message Schema
 const messageSchema = new mongoose.Schema({
-  groupCode: String,
-  user: String,
-  text: String,
-  fileUrl: String,
+  roomId: String,
+  sender: String,
+  message: String,
+  reactions: [String],
+  isEdited: Boolean,
+  isDeleted: Boolean,
+  readBy: [String],
   timestamp: { type: Date, default: Date.now },
 });
 
-const Message = mongoose.model("Message", messageSchema);
+const User = mongoose.model('User', userSchema);
+const Message = mongoose.model('Message', messageSchema);
 
-// ✅ API: Create a Group
-app.post("/create-group", async (req, res) => {
-  const { groupCode } = req.body;
+// Middleware
+app.use(express.json());
+app.use(express.static('public'));
 
-  if (!groupCode) return res.status(400).json({ error: "Group code required" });
-
-  const existingGroup = await Group.findOne({ groupCode });
-  if (existingGroup) return res.status(400).json({ error: "Group already exists" });
-
-  const newGroup = new Group({ groupCode });
-  await newGroup.save();
-  res.json({ message: "Group created successfully", groupCode });
+// File upload setup
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, 'uploads/');
+  },
+  filename: (req, file, cb) => {
+    cb(null, Date.now() + '-' + file.originalname);
+  },
 });
 
-// ✅ API: Join a Group
-app.post("/join-group", async (req, res) => {
-  const { groupCode } = req.body;
+const upload = multer({ storage });
 
-  if (!groupCode) return res.status(400).json({ error: "Group code required" });
-
-  const group = await Group.findOne({ groupCode });
-  if (!group) return res.status(404).json({ error: "Group not found" });
-
-  res.json({ message: "Joined group successfully", groupCode });
+// Routes
+app.post('/upload', upload.single('file'), (req, res) => {
+  const fileUrl = `http://localhost:8081/uploads/${req.file.filename}`;
+  res.json({ fileUrl });
 });
 
-// ✅ API: Get Messages for a Group
-app.get("/messages/:groupCode", async (req, res) => {
-  const messages = await Message.find({ groupCode: req.params.groupCode });
-  res.json(messages);
-});
+// Socket.IO logic
+io.on('connection', (socket) => {
+  console.log('A user connected');
 
-// ✅ SOCKET.IO HANDLING
-io.on("connection", (socket) => {
-  console.log("⚡ New user connected");
-
-  socket.on("joinGroup", (groupCode) => {
-    socket.join(groupCode);
-    console.log(`User joined group: ${groupCode}`);
+  // Join a private room
+  socket.on('join private', async (data) => {
+    const { roomId, username } = data;
+    socket.join(roomId);
+    socket.emit('private status', `Joined private room: ${roomId}`);
   });
 
-  socket.on("chatMessage", async (data) => {
-    const { groupCode, user, text } = data;
-    if (!groupCode || !user || !text) return;
-
-    const message = new Message({ groupCode, user, text });
+  // Send a private message
+  socket.on('private message', async (data) => {
+    const message = new Message({
+      roomId: data.roomId,
+      sender: data.sender,
+      message: data.message,
+    });
     await message.save();
 
-    io.to(groupCode).emit("chatMessage", message);
+    io.to(data.roomId).emit('private message', message);
   });
 
-  socket.on("disconnect", () => {
-    console.log("⚡ User disconnected");
+  // Message reactions
+  socket.on('react to message', async (data) => {
+    const { messageId, reaction } = data;
+    const message = await Message.findById(messageId);
+    message.reactions.push(reaction);
+    await message.save();
+
+    io.to(data.roomId).emit('message reacted', { messageId, reaction });
+  });
+
+  // Typing indicators
+  socket.on('typing', (data) => {
+    socket.to(data.roomId).emit('user typing', { username: data.username });
+  });
+
+  // Edit message
+  socket.on('edit message', async (data) => {
+    const { messageId, newMessage } = data;
+    const message = await Message.findById(messageId);
+    message.message = newMessage;
+    message.isEdited = true;
+    await message.save();
+
+    io.to(data.roomId).emit('message edited', { messageId, newMessage });
+  });
+
+  // Delete message
+  socket.on('delete message', async (data) => {
+    const { messageId } = data;
+    const message = await Message.findById(messageId);
+    message.isDeleted = true;
+    await message.save();
+
+    io.to(data.roomId).emit('message deleted', { messageId });
+  });
+
+  // Read receipts
+  socket.on('mark as read', async (data) => {
+    const { messageId, username } = data;
+    const message = await Message.findById(messageId);
+    message.readBy.push(username);
+    await message.save();
+
+    io.to(data.roomId).emit('message read', { messageId, username });
+  });
+
+  // Handle user disconnect
+  socket.on('disconnect', () => {
+    console.log('User disconnected');
   });
 });
 
-// Start Server
-const PORT = process.env.PORT || 8080;
-server.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+// Start the server
+const PRIVATE_PORT = process.env.PRIVATE_PORT || 8081;
+http.listen(PRIVATE_PORT, () => {
+  console.log(`🚀 Private chat server is running on port ${PRIVATE_PORT}`);
 });
