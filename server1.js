@@ -2,84 +2,98 @@ const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
 const mongoose = require('mongoose');
-
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server);
 
-// MongoDB model for Group
-const groupSchema = new mongoose.Schema({
-  groupCode: { type: String, unique: true },
-  members: [String]
-});
-const Group = mongoose.model('Group', groupSchema);
+const port = 3000;
+const mongoURI = 'mongodb://localhost:27017/chat-app'; // Change this to your MongoDB URI
+
+// MongoDB Models
+const Group = require('./models/group');
+const Message = require('./models/message');
+
+// Middleware to serve static files (like your private.html)
+app.use(express.static('public')); // Ensure your private.html is inside a folder named "public"
 
 // Connect to MongoDB
-mongoose.connect('mongodb://localhost/chatApp', {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-});
+mongoose.connect(mongoURI, { useNewUrlParser: true, useUnifiedTopology: true })
+  .then(() => console.log('MongoDB connected'))
+  .catch((err) => console.error('MongoDB connection error: ', err));
 
-// Serve static files (your group chat HTML)
-app.use(express.static('public'));
-
-// Create a new group
+// Handle group creation
 io.on('connection', (socket) => {
-  console.log('A user connected');
+  let currentGroupCode = '';
 
-  // Listen for group creation requests
-  socket.on('create group', async (groupCode) => {
-    try {
-      const existingGroup = await Group.findOne({ groupCode });
-
-      if (existingGroup) {
-        socket.emit('group creation failed', { message: 'Group code already exists!' });
-        return;
+  // Join group or create new group
+  socket.on('join group', (groupCode, callback) => {
+    Group.findOne({ code: groupCode }, (err, group) => {
+      if (err || !group) {
+        callback({ success: false });
+      } else {
+        socket.join(groupCode);
+        currentGroupCode = groupCode;
+        callback({ success: true });
       }
-
-      // Create new group if the code doesn't exist
-      const newGroup = new Group({ groupCode, members: [] });
-      await newGroup.save();
-
-      socket.emit('group creation success', { message: 'Group created successfully!', groupCode });
-
-    } catch (error) {
-      socket.emit('group creation failed', { message: 'Error creating the group!' });
-      console.error(error);
-    }
+    });
   });
 
-  // Listen for join group requests
-  socket.on('join group', async (groupCode) => {
-    try {
-      const group = await Group.findOne({ groupCode });
+  socket.on('create group', (groupCode, callback) => {
+    const newGroup = new Group({ code: groupCode });
 
-      if (!group) {
-        socket.emit('group join failed', { message: 'Group does not exist!' });
-        return;
+    newGroup.save((err, savedGroup) => {
+      if (err) {
+        callback({ success: false });
+      } else {
+        socket.join(savedGroup.code);
+        currentGroupCode = savedGroup.code;
+        callback({ success: true });
       }
-
-      // Add user to the group (you can use username to track users)
-      const username = 'User' + socket.id;  // This is just a placeholder for user name
-      group.members.push(username);
-      await group.save();
-
-      socket.join(groupCode);
-      socket.emit('group join success', { message: 'Joined group successfully!', groupCode });
-
-    } catch (error) {
-      socket.emit('group join failed', { message: 'Error joining the group!' });
-      console.error(error);
-    }
+    });
   });
 
-  // Handle disconnection
+  // Handle sending chat messages
+  socket.on('chat message', (data) => {
+    const newMessage = new Message({
+      text: data.text,
+      groupCode: currentGroupCode,
+      sender: socket.id, // Store socket id as sender
+    });
+
+    newMessage.save((err, savedMessage) => {
+      if (err) return console.error('Message save error: ', err);
+      
+      // Emit the message to everyone in the group
+      io.to(currentGroupCode).emit('chat message', {
+        user: socket.id, // Sending socket id for simplicity; you can use a username
+        text: data.text,
+      });
+    });
+  });
+
+  // Handle reactions
+  socket.on('reaction', (reactionData) => {
+    io.to(currentGroupCode).emit('reaction', {
+      user: socket.id,
+      reaction: reactionData.reaction,
+    });
+  });
+
+  // Typing indicator
+  socket.on('typing', (data) => {
+    socket.broadcast.to(currentGroupCode).emit('typing');
+  });
+
+  // Disconnecting from group
   socket.on('disconnect', () => {
-    console.log('A user disconnected');
+    if (currentGroupCode) {
+      socket.leave(currentGroupCode);
+      console.log(`User disconnected from group: ${currentGroupCode}`);
+    }
   });
 });
 
-// Start server
-server.listen(3000, () => {
-  console.log('Server is running on port 3000');
+// Start the server
+server.listen(port, () => {
+  console.log(`Server running on port ${port}`);
 });
