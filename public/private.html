@@ -1,278 +1,278 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Group Chat</title>
-    <style>
-        /* Styles for the page */
-        body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            background-color: #f5f7fb;
-        }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Private Chat</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f5f5f5;
+      margin: 0;
+      padding: 0;
+    }
 
-        .container {
-            text-align: center;
-            width: 300px;
-            padding: 20px;
-            background-color: white;
-            border-radius: 8px;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-        }
+    .container {
+      max-width: 600px;
+      margin: 50px auto;
+      background-color: #fff;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
 
-        input[type="text"] {
-            width: 80%;
-            padding: 10px;
-            margin: 10px 0;
-            border-radius: 5px;
-            border: 1px solid #ccc;
-        }
+    .btn {
+      background-color: #007bff;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 16px;
+    }
 
-        button {
-            padding: 10px 20px;
-            border-radius: 5px;
-            border: none;
-            background-color: #007bff;
-            color: white;
-            cursor: pointer;
-            transition: background 0.3s;
-        }
+    .btn:hover {
+      background-color: #0056b3;
+    }
 
-        button:hover {
-            background-color: #0056b3;
-        }
+    #messages {
+      max-height: 300px;
+      overflow-y: auto;
+      margin-bottom: 10px;
+      border: 1px solid #ddd;
+      padding: 10px;
+      border-radius: 10px;
+    }
 
-        .option {
-            margin-top: 10px;
-        }
+    #input-container {
+      display: flex;
+      margin-top: 10px;
+    }
 
-        .create-group {
-            margin-top: 20px;
-            background-color: #28a745;
-        }
+    #input-container input {
+      flex: 1;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      font-size: 16px;
+    }
 
-        .create-group:hover {
-            background-color: #218838;
-        }
+    #input-container button {
+      padding: 10px;
+      border: 1px solid #ddd;
+      background-color: #007bff;
+      color: white;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 16px;
+    }
 
-        .chat-container {
-            width: 100%;
-            max-width: 600px;
-            margin: 20px auto;
-            padding: 20px;
-            background-color: #fff;
-            border-radius: 8px;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-        }
+    #input-container button:hover {
+      background-color: #0056b3;
+    }
 
-        .messages {
-            max-height: 400px;
-            overflow-y: scroll;
-            border-bottom: 1px solid #ddd;
-            margin-bottom: 10px;
-        }
+    .settings-modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: rgba(0, 0, 0, 0.5);
+      justify-content: center;
+      align-items: center;
+      color: #fff;
+      z-index: 1000;
+    }
 
-        .message {
-            padding: 5px;
-            border-radius: 4px;
-            margin: 5px 0;
-            background-color: #f1f1f1;
-        }
+    .settings-content {
+      background-color: #333;
+      padding: 20px;
+      border-radius: 10px;
+      width: 300px;
+    }
 
-        .input-container {
-            display: flex;
-            justify-content: space-between;
-        }
+    .settings-content input {
+      padding: 10px;
+      margin-bottom: 10px;
+      width: 100%;
+      font-size: 16px;
+    }
 
-        .input-container input {
-            width: 80%;
-        }
+    .settings-content button {
+      background-color: #007bff;
+      color: white;
+      padding: 10px;
+      width: 100%;
+      border: none;
+      border-radius: 5px;
+    }
 
-        .input-container button {
-            width: 18%;
-        }
-
-        /* Quick Reactions */
-        .reactions {
-            display: flex;
-            margin: 5px 0;
-            justify-content: flex-start;
-        }
-
-        .reaction-button {
-            padding: 5px;
-            margin: 0 5px;
-            cursor: pointer;
-            font-size: 16px;
-        }
-
-        .theme-button {
-            margin-top: 20px;
-        }
-    </style>
+    .settings-content button:hover {
+      background-color: #0056b3;
+    }
+  </style>
 </head>
-
 <body>
-    <div class="container" id="join-container">
-        <h2>Join or Create a Group</h2>
-        <input type="text" id="group-code" placeholder="Enter group code">
-        <button onclick="joinGroup()">Join Group</button>
-        <div class="option">
-            <button onclick="createGroup()" class="create-group">Create Group</button>
-        </div>
+
+  <div class="container">
+    <h2>Private Chat</h2>
+
+    <div id="messages"></div>
+
+    <div id="input-container">
+      <input type="text" id="message" placeholder="Type a message..." />
+      <button onclick="sendMessage()">Send</button>
     </div>
 
-    <div class="chat-container" id="chat-container" style="display: none;">
-        <h3 id="group-name">Group Chat</h3>
-        <div id="messages" class="messages"></div>
-
-        <!-- Quick Reactions -->
-        <div class="reactions" id="reaction-container"></div>
-
-        <!-- Message Input -->
-        <div class="input-container">
-            <input type="text" id="message" placeholder="Type a message..." oninput="showTypingIndicator()">
-            <button onclick="sendMessage()">Send</button>
-        </div>
-
-        <!-- Typing Indicator -->
-        <div id="typing-indicator" style="display:none;">Someone is typing...</div>
-
-        <!-- Theme Button -->
-        <button class="theme-button" onclick="toggleTheme()">Toggle Dark Mode</button>
+    <div>
+      <button id="create-group-btn" class="btn" onclick="showCreateGroupForm()">Create Group</button>
+      <button id="join-group-btn" class="btn" onclick="showJoinGroupForm()">Join Group</button>
     </div>
 
-    <script src="/socket.io/socket.io.js"></script>
-    <script>
-        const socket = io();
-        let currentGroupCode = '';
-        let isInGroup = false;
-        let userTyping = false;
-        let currentTheme = 'light';
+    <!-- Group creation form -->
+    <div id="create-group-form" style="display:none; margin-top: 10px;">
+      <input type="text" id="new-group-name" placeholder="Enter Group Name" />
+      <input type="text" id="new-group-code" placeholder="Enter Group Code" />
+      <button class="btn" onclick="createGroup()">Create Group</button>
+    </div>
 
-        // Handle user joining a group
-        function joinGroup() {
-            const groupCode = document.getElementById('group-code').value;
-            if (groupCode.trim()) {
-                socket.emit('join group', groupCode, function (response) {
-                    if (response.success) {
-                        // Hide the join/create options
-                        document.getElementById('join-container').style.display = 'none';
-                        document.getElementById('chat-container').style.display = 'block';
-                        document.getElementById('group-name').textContent = `Group: ${groupCode}`;
-                        currentGroupCode = groupCode;
-                        isInGroup = true;
-                    } else {
-                        alert('Group not found or invalid group code.');
-                    }
-                });
-            }
-        }
+    <!-- Join Group form -->
+    <div id="join-group-form" style="display:none; margin-top: 10px;">
+      <input type="text" id="group-code" placeholder="Enter Group Code to Join" />
+      <button class="btn" onclick="joinGroup()">Join Group</button>
+    </div>
 
-        // Handle creating a new group
-        function createGroup() {
-            const groupCode = prompt('Enter a code for your new group:');
-            if (groupCode && groupCode.trim()) {
-                socket.emit('create group', groupCode, function (response) {
-                    if (response.success) {
-                        // Hide the join/create options
-                        document.getElementById('join-container').style.display = 'none';
-                        document.getElementById('chat-container').style.display = 'block';
-                        document.getElementById('group-name').textContent = `Group: ${groupCode}`;
-                        currentGroupCode = groupCode;
-                        isInGroup = true;
-                    } else {
-                        alert('Group creation failed, please try again.');
-                    }
-                });
-            }
-        }
+    <!-- Settings Button -->
+    <button class="btn" onclick="openSettings()">Settings</button>
 
-        // Send a message to the group
-        function sendMessage() {
-            const messageInput = document.getElementById('message');
-            const message = messageInput.value.trim();
-            if (message && isInGroup) {
-                socket.emit('chat message', { text: message, groupCode: currentGroupCode });
-                messageInput.value = '';
-            }
-        }
+    <!-- Settings Modal -->
+    <div class="settings-modal" id="settings-modal">
+      <div class="settings-content">
+        <h3>Settings</h3>
+        <input type="text" id="username" placeholder="Enter Username" />
+        <select id="theme">
+          <option value="light">Light Theme</option>
+          <option value="dark">Dark Theme</option>
+        </select>
+        <button class="btn" onclick="saveSettings()">Save Settings</button>
+      </div>
+    </div>
+  </div>
 
-        // Show typing indicator
-        function showTypingIndicator() {
-            if (!userTyping) {
-                socket.emit('typing', { groupCode: currentGroupCode });
-                userTyping = true;
-                setTimeout(() => { userTyping = false; }, 3000);
-            }
-        }
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    let currentGroup = null;
+    let currentUsername = '';
+    let currentTheme = 'light'; // Default theme
 
-        // Toggle between dark and light mode
-        function toggleTheme() {
-            if (currentTheme === 'light') {
-                document.body.style.backgroundColor = '#333';
-                document.body.style.color = '#fff';
-                currentTheme = 'dark';
-            } else {
-                document.body.style.backgroundColor = '#f5f7fb';
-                document.body.style.color = '#000';
-                currentTheme = 'light';
-            }
-        }
+    // Display a message
+    function displayMessage(msg) {
+      const messageElement = document.createElement('div');
+      messageElement.textContent = msg.text;
+      document.getElementById('messages').appendChild(messageElement);
+    }
 
-        // Handle receiving messages
-        socket.on('chat message', function (data) {
-            const messageElement = document.createElement('div');
-            messageElement.classList.add('message');
-            messageElement.textContent = `${data.user}: ${data.text}`;
-            document.getElementById('messages').appendChild(messageElement);
-            document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
+    socket.on('chat message', displayMessage);
+
+    // Send a message
+    function sendMessage() {
+      const messageInput = document.getElementById('message');
+      const msg = messageInput.value.trim();
+      if (msg && currentGroup) {
+        socket.emit('send message', { groupId: currentGroup, text: msg });
+        messageInput.value = '';
+      }
+    }
+
+    // Show Create Group Form
+    function showCreateGroupForm() {
+      document.getElementById('create-group-form').style.display = 'block';
+      document.getElementById('join-group-form').style.display = 'none';
+    }
+
+    // Create Group
+    function createGroup() {
+      const groupName = document.getElementById('new-group-name').value;
+      const groupCode = document.getElementById('new-group-code').value;
+
+      if (groupName && groupCode) {
+        fetch('/create-group', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ groupName, groupCode })
+        })
+        .then(response => response.json())
+        .then(data => {
+          currentGroup = data.groupId;
+          alert('Group created successfully!');
+          showGroupChat();
         });
+      }
+    }
 
-        // Handle typing indicator
-        socket.on('typing', function () {
-            document.getElementById('typing-indicator').style.display = 'block';
-            setTimeout(() => { document.getElementById('typing-indicator').style.display = 'none'; }, 2000);
-        });
+    // Show Join Group Form
+    function showJoinGroupForm() {
+      document.getElementById('join-group-form').style.display = 'block';
+      document.getElementById('create-group-form').style.display = 'none';
+    }
 
-        // Handle quick reactions
-        socket.on('reaction', function (reactionData) {
-            const reactionElement = document.createElement('div');
-            reactionElement.classList.add('message');
-            reactionElement.textContent = `${reactionData.user} reacted with: ${reactionData.reaction}`;
-            document.getElementById('messages').appendChild(reactionElement);
-        });
+    // Join Group
+    function joinGroup() {
+      const groupCode = document.getElementById('group-code').value;
 
-        // Add quick reactions to the message
-        function addReaction(reaction) {
-            socket.emit('reaction', { groupCode: currentGroupCode, reaction: reaction });
-        }
+      fetch('/join-group', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ groupCode })
+      })
+      .then(response => response.json())
+      .then(data => {
+        currentGroup = data.groupId;
+        alert('Joined group successfully!');
+        showGroupChat();
+      });
+    }
 
-        // Display quick reactions buttons
-        function displayReactions() {
-            const reactions = ['👍', '❤️', '😂', '😢', '😮'];
-            const reactionContainer = document.getElementById('reaction-container');
-            reactions.forEach(reaction => {
-                const button = document.createElement('button');
-                button.textContent = reaction;
-                button.classList.add('reaction-button');
-                button.onclick = () => addReaction(reaction);
-                reactionContainer.appendChild(button);
-            });
-        }
+    // Show group chat
+    function showGroupChat() {
+      document.getElementById('create-group-form').style.display = 'none';
+      document.getElementById('join-group-form').style.display = 'none';
+      socket.emit('join group', currentGroup);
+    }
 
-        // Display the reactions when in the group chat
-        if (isInGroup) {
-            displayReactions();
-        }
-    </script>
+    // Open Settings Modal
+    function openSettings() {
+      document.getElementById('settings-modal').style.display = 'flex';
+    }
+
+    // Save Settings
+    function saveSettings() {
+      currentUsername = document.getElementById('username').value || 'Anonymous';
+      currentTheme = document.getElementById('theme').value;
+
+      // Apply theme changes
+      if (currentTheme === 'dark') {
+        document.body.style.backgroundColor = '#333';
+        document.body.style.color = '#fff';
+      } else {
+        document.body.style.backgroundColor = '#f5f5f5';
+        document.body.style.color = '#000';
+      }
+
+      // Close settings modal
+      document.getElementById('settings-modal').style.display = 'none';
+
+      alert('Settings saved!');
+    }
+
+    // Quick reactions (like 👍, 👎)
+    function sendQuickReaction(reaction) {
+      if (currentGroup) {
+        socket.emit('send message', { groupId: currentGroup, text: reaction });
+      }
+    }
+  </script>
 </body>
-
 </html>
