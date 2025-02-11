@@ -1,91 +1,214 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Private Chat</title>
-    <link rel="stylesheet" href="styles.css">
-    <script src="https://cdn.socket.io/4.3.2/socket.io.min.js"></script>
-    <script defer src="private.js"></script>
+    <title>Messenger Clone</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f7fb;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+            transition: background-color 0.3s ease;
+        }
+
+        #group-container {
+            width: 100%;
+            max-width: 480px;
+            height: 500px;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.3s ease;
+        }
+
+        #join-group-form {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100%;
+            padding: 20px;
+        }
+
+        #join-group-form input {
+            padding: 12px;
+            margin: 10px;
+            width: 80%;
+            border-radius: 10px;
+            border: 1px solid #ccc;
+        }
+
+        #join-group-form button {
+            padding: 10px 20px;
+            border-radius: 10px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+            margin: 10px;
+        }
+
+        #join-group-form button:hover {
+            background-color: #0056b3;
+        }
+
+        #chat-container {
+            display: none;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        #messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 15px;
+            margin: 10px;
+            box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.05);
+        }
+
+        .message {
+            background: #ffffff;
+            padding: 12px 18px;
+            margin: 12px 0;
+            border-radius: 20px;
+            max-width: 80%;
+            word-wrap: break-word;
+            position: relative;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        #input-area {
+            display: flex;
+            padding: 15px 20px;
+            background: #ffffff;
+            border-top: 1px solid #ddd;
+            align-items: center;
+        }
+
+        #input-area input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            margin-right: 10px;
+            border-radius: 30px;
+            border: 1px solid #ccc;
+            font-size: 16px;
+        }
+
+        #input-area button {
+            background: #007bff;
+            border: none;
+            padding: 12px;
+            border-radius: 50%;
+            color: #ffffff;
+            font-size: 22px;
+            cursor: pointer;
+        }
+
+        #input-area button:hover {
+            background: #0056b3;
+        }
+    </style>
 </head>
+
 <body>
-    <div id="chat-container">
-        <!-- Header -->
-        <header>
-            <h2>Private Chat</h2>
-            <button id="settings-button" onclick="toggleSettings()">Settings</button>
-        </header>
-
-        <!-- Messages Section -->
-        <div id="messages">
-            <!-- Messages will be dynamically added here -->
+    <div id="group-container">
+        <!-- Join or create group form -->
+        <div id="join-group-form">
+            <h2>Enter Group Code</h2>
+            <input type="text" id="group-code" placeholder="Enter group code">
+            <button onclick="joinGroup()">Join Group</button>
+            <button onclick="createGroup()">Create New Group</button>
         </div>
 
-        <!-- Input Area -->
-        <div id="input-area">
-            <input type="text" id="message-input" placeholder="Type a message" />
-            <button id="send-button" onclick="sendMessage()">Send</button>
-        </div>
+        <!-- Chat container -->
+        <div id="chat-container">
+            <div id="messages"></div>
 
-        <!-- Settings Panel (Hidden by default) -->
-        <div id="settings-panel" class="hidden">
-            <h3>Settings</h3>
-            <button onclick="toggleTheme()">Toggle Dark Mode</button>
-            <button onclick="clearMessages()">Clear Chat</button>
+            <div id="input-area">
+                <input type="text" id="message" placeholder="Type a message...">
+                <button onclick="sendMessage()">Send</button>
+            </div>
         </div>
     </div>
 
+    <script src="/socket.io/socket.io.js"></script>
     <script>
-        // Initialize Socket.io
-        const socket = io('http://localhost:5001');  // Connecting to the private chat server
-        const messageInput = document.getElementById('message-input');
-        const sendButton = document.getElementById('send-button');
-        const messagesContainer = document.getElementById('messages');
-        const settingsPanel = document.getElementById('settings-panel');
+        const socket = io();
+        let groupId = localStorage.getItem('groupId') || '';
+        let username = localStorage.getItem('username') || 'Anonymous';
 
-        // Handle incoming private messages
-        socket.on('private message', (msg) => {
-            displayMessage(msg);
-        });
-
-        // Display messages in the chat
-        function displayMessage(msg) {
-            const messageElement = document.createElement('div');
-            messageElement.classList.add('message');
-            messageElement.innerText = `${msg.user}: ${msg.text}`;
-            messagesContainer.appendChild(messageElement);
-            scrollToBottom();
+        // Fetch messages for the group if joined
+        if (groupId) {
+            fetch(`/group/${groupId}/messages`)
+                .then(response => response.json())
+                .then(messages => {
+                    messages.forEach(msg => displayMessage(msg));
+                });
         }
 
-        // Send a private message
-        function sendMessage() {
-            const messageText = messageInput.value;
-            if (messageText.trim()) {
-                const message = { user: 'User', text: messageText };
-                socket.emit('private message', message);
-                messageInput.value = ''; // Clear input field
+        function joinGroup() {
+            const groupCode = document.getElementById('group-code').value.trim();
+            if (groupCode) {
+                fetch(`/join-group/${groupCode}`, { method: 'POST' })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            groupId = data.groupId;
+                            localStorage.setItem('groupId', groupId);
+                            document.getElementById('join-group-form').style.display = 'none';
+                            document.getElementById('chat-container').style.display = 'flex';
+                            socket.emit('join group', { groupId, username });
+                        } else {
+                            alert('Invalid group code');
+                        }
+                    });
             }
         }
 
-        // Toggle settings panel visibility
-        function toggleSettings() {
-            settingsPanel.classList.toggle('hidden');
+        function createGroup() {
+            fetch('/create-group', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    groupId = data.groupId;
+                    localStorage.setItem('groupId', groupId);
+                    document.getElementById('join-group-form').style.display = 'none';
+                    document.getElementById('chat-container').style.display = 'flex';
+                    socket.emit('create group', { groupId, username });
+                });
         }
 
-        // Toggle between light and dark mode
-        function toggleTheme() {
-            document.body.classList.toggle('dark-mode');
+        function sendMessage() {
+            const messageInput = document.getElementById('message');
+            const msg = messageInput.value.trim();
+            if (msg) {
+                socket.emit('chat message', { text: msg, user: username, groupId });
+                messageInput.value = '';
+            }
         }
 
-        // Clear the chat messages
-        function clearMessages() {
-            messagesContainer.innerHTML = '';
+        function displayMessage(msg) {
+            const messagesDiv = document.getElementById('messages');
+            const messageElement = document.createElement('div');
+            messageElement.classList.add('message');
+            messageElement.innerHTML = `<strong>${msg.user}:</strong> ${msg.text}`;
+            messagesDiv.appendChild(messageElement);
         }
 
-        // Scroll to the bottom of the chat container
-        function scrollToBottom() {
-            messagesContainer.scrollTop = messagesContainer.scrollHeight;
-        }
+        socket.on('chat message', displayMessage);
     </script>
 </body>
+
 </html>
