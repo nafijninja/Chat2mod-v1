@@ -86,10 +86,10 @@ io.on('connection', (socket) => {
         const { roomId, username } = data;
         socket.join(roomId);
 
-        // Load previous messages
+        // Load previous messages (only from this room's specific JSON file)
         const messages = getMessages(roomId);
         socket.emit('load messages', messages);
-        
+
         console.log(`${username} joined room ${roomId}`);
         io.to(roomId).emit('room joined', { roomId });
     });
