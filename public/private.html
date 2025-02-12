@@ -1,111 +1,174 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Private Chat</title>
-  <script src="/socket.io/socket.io.js"></script>
-  <style>
-    body { font-family: Arial, sans-serif; text-align: center; margin: 20px; }
-    .chat-container { width: 100%; max-width: 500px; margin: auto; }
-    .hidden { display: none; }
-    .messages { border: 1px solid #ccc; height: 300px; overflow-y: scroll; padding: 10px; text-align: left; margin-bottom: 10px; }
-    input, button { margin: 5px; padding: 8px; }
-    .file-message a { color: blue; text-decoration: underline; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Private Chat</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f9;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        .chat-container {
+            background-color: #fff;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            width: 90%;
+            max-width: 500px;
+            padding: 20px;
+            text-align: center;
+        }
+        .messages {
+            height: 300px;
+            overflow-y: scroll;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            padding: 10px;
+            margin-bottom: 10px;
+            background-color: #f9f9f9;
+        }
+        input, button {
+            padding: 10px;
+            margin: 5px 0;
+            width: 100%;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .hidden {
+            display: none;
+        }
+        .room-id {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+    </style>
 </head>
 <body>
-  <div class="chat-container">
-    <h1>Private Chat Room</h1>
 
-    <!-- Room Entry Section -->
+<div class="chat-container">
+    <h1>Private Chat</h1>
     <div id="room-entry">
-      <input type="text" id="room-id" placeholder="Enter Room ID">
-      <button onclick="joinRoom()">Join Room</button>
-      <p>Don't have a room? <button onclick="createRoom()">Create One</button></p>
+        <input type="text" id="room-id" placeholder="Enter Room ID">
+        <button onclick="joinRoom()">Enter Room</button>
+        <p>Don't have a room? <button onclick="createRoom()">Create One</button></p>
     </div>
-
-    <!-- Chat Section -->
     <div id="chat-section" class="hidden">
-      <h3 id="room-id-display"></h3>
-      <div id="messages" class="messages"></div>
-      <input type="text" id="input" placeholder="Type a message">
-      <button onclick="sendMessage()">Send</button>
-      <input type="file" id="file-input">
-      <button onclick="uploadFile()">Upload File</button>
+        <div class="room-id" id="room-id-display"></div>
+        <div class="messages" id="messages"></div>
+        <input type="text" id="input" placeholder="Type a message">
+        <button onclick="sendMessage()">Send</button>
+        <input type="file" id="file-input">
+        <button onclick="uploadFile()">Upload File</button>
     </div>
-  </div>
+</div>
 
-  <script>
+<script src="/socket.io/socket.io.js"></script>
+<script>
     const socket = io();
     let currentRoomId = null;
 
+    function format12Hour(timestamp) {
+        let date = new Date(timestamp);
+        let hours = date.getHours();
+        let minutes = date.getMinutes();
+        let ampm = hours >= 12 ? 'PM' : 'AM';
+        hours = hours % 12 || 12;
+        minutes = minutes < 10 ? '0' + minutes : minutes;
+        return `${hours}:${minutes} ${ampm}`;
+    }
+
     function joinRoom() {
-      const roomId = document.getElementById('room-id').value.trim();
-      if (!roomId) return alert('Enter a Room ID');
-      currentRoomId = roomId;
-      socket.emit('join private', { roomId, username: 'You' });
-      showChatSection();
+        const roomId = document.getElementById('room-id').value;
+        if (roomId) {
+            currentRoomId = roomId;
+            socket.emit('join private', { roomId, username: 'You' });
+            showChatSection();
+        } else {
+            alert('Please enter a room ID.');
+        }
     }
 
     function createRoom() {
-      currentRoomId = Math.random().toString(36).substring(7);
-      document.getElementById('room-id').value = currentRoomId;
-      socket.emit('join private', { roomId: currentRoomId, username: 'You' });
-      showChatSection();
+        const roomId = Math.random().toString(36).substring(7);
+        currentRoomId = roomId;
+        document.getElementById('room-id').value = roomId;
+        socket.emit('join private', { roomId, username: 'You' });
+        showChatSection();
     }
 
     function showChatSection() {
-      document.getElementById('room-entry').classList.add('hidden');
-      document.getElementById('chat-section').classList.remove('hidden');
-      document.getElementById('room-id-display').innerText = `Room ID: ${currentRoomId}`;
+        document.getElementById('room-entry').classList.add('hidden');
+        document.getElementById('chat-section').classList.remove('hidden');
+        document.getElementById('room-id-display').innerText = `Room ID: ${currentRoomId}`;
     }
 
     function sendMessage() {
-      const input = document.getElementById('input');
-      const message = input.value.trim();
-      if (!message) return;
-      socket.emit('private message', { roomId: currentRoomId, sender: 'You', message });
-      input.value = '';
+        const input = document.getElementById('input');
+        const message = input.value;
+        if (currentRoomId && message) {
+            socket.emit('private message', {
+                roomId: currentRoomId,
+                sender: 'You',
+                message: message,
+            });
+            input.value = '';
+        }
     }
 
     function uploadFile() {
-      const fileInput = document.getElementById('file-input');
-      const file = fileInput.files[0];
-      if (!file) return alert("Select a file first");
+        const fileInput = document.getElementById('file-input');
+        const file = fileInput.files[0];
+        if (!file) return alert('Select a file first.');
 
-      const formData = new FormData();
-      formData.append('file', file);
+        const formData = new FormData();
+        formData.append('file', file);
 
-      fetch('/upload', { method: 'POST', body: formData })
-        .then(response => response.json())
-        .then(data => {
-          socket.emit('file uploaded', {
-            roomId: currentRoomId,
-            sender: 'You',
-            fileUrl: data.fileUrl,
-            fileName: file.name,
-          });
-        });
+        fetch('/upload', { method: 'POST', body: formData })
+            .then(response => response.json())
+            .then(data => {
+                socket.emit('file uploaded', {
+                    roomId: currentRoomId,
+                    sender: 'You',
+                    fileUrl: data.fileUrl,
+                    fileName: file.name,
+                });
+            });
     }
 
     socket.on('private message', (data) => {
-      const messagesDiv = document.getElementById('messages');
-      const messageElement = document.createElement('div');
-      messageElement.innerHTML = `<strong>${data.sender}:</strong> ${data.message}`;
-      messagesDiv.appendChild(messageElement);
-      messagesDiv.scrollTop = messagesDiv.scrollHeight;
-    });
-
-    socket.on('load messages', (messages) => {
-      const messagesDiv = document.getElementById('messages');
-      messagesDiv.innerHTML = messages.map(msg => `<div><strong>${msg.sender}:</strong> ${msg.message}</div>`).join('');
-      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        const messagesDiv = document.getElementById('messages');
+        messagesDiv.innerHTML += `<div><strong>${data.sender}:</strong> ${data.message} <span style="font-size: 12px;">(${format12Hour(data.timestamp)})</span></div>`;
     });
 
     socket.on('room joined', (data) => {
-      document.getElementById('room-id-display').innerText = `Room ID: ${data.roomId}`;
+        document.getElementById('room-id-display').innerText = `Room ID: ${data.roomId}`;
     });
-  </script>
+
+    socket.on('load messages', (messages) => {
+        const messagesDiv = document.getElementById('messages');
+        messagesDiv.innerHTML = messages
+            .map(msg => `<div><strong>${msg.sender}:</strong> ${msg.message} <span style="font-size: 12px;">(${format12Hour(msg.timestamp)})</span></div>`)
+            .join('');
+    });
+</script>
+
 </body>
 </html>
