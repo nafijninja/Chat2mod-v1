@@ -9,17 +9,17 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server);
 
-const CHAT_FOLDER = 'NAFIJ';
+const PRO_FOLDER = 'PRO';
 
-// Ensure the NAFIJ folder exists
-if (!fs.existsSync(CHAT_FOLDER)) {
-    fs.mkdirSync(CHAT_FOLDER);
+// Ensure the PRO folder exists
+if (!fs.existsSync(PRO_FOLDER)) {
+    fs.mkdirSync(PRO_FOLDER);
 }
 
 // Set up file storage for uploads
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        cb(null, CHAT_FOLDER);
+        cb(null, PRO_FOLDER);
     },
     filename: (req, file, cb) => {
         cb(null, `${Date.now()}_${file.originalname}`);
@@ -37,7 +37,7 @@ app.post('/upload', upload.single('file'), (req, res) => {
     if (!req.file) {
         return res.status(400).json({ error: 'No file uploaded' });
     }
-    const fileUrl = `/NAFIJ/${req.file.filename}`;
+    const fileUrl = `/PRO/${req.file.filename}`;
     res.json({ fileUrl });
 });
 
@@ -54,7 +54,7 @@ function format12Hour(timestamp) {
 
 // Function to get file path for a room
 function getRoomFilePath(roomId) {
-    return path.join(__dirname, CHAT_FOLDER, `nafij_${roomId}.json`);
+    return path.join(__dirname, PRO_FOLDER, `pro${roomId}.json`);
 }
 
 // Function to read messages from JSON file
@@ -82,11 +82,19 @@ function saveMessage(roomId, messageData) {
 io.on('connection', (socket) => {
     console.log('A user connected to private chat.');
 
+    socket.on('create private', (data) => {
+        const { roomId } = data;
+        const filePath = getRoomFilePath(roomId);
+        if (!fs.existsSync(filePath)) {
+            fs.writeFileSync(filePath, JSON.stringify([], null, 2));
+            console.log(`Room ${roomId} created successfully.`);
+        }
+    });
+
     socket.on('join private', (data) => {
         const { roomId, username } = data;
         socket.join(roomId);
 
-        // Load previous messages (only from this room's specific JSON file)
         const messages = getMessages(roomId);
         socket.emit('load messages', messages);
 
@@ -115,12 +123,10 @@ io.on('connection', (socket) => {
     });
 
     socket.on('disconnect', () => {
-        console.log('A user disconnected from private chat.');
+        console.log('A user disconnected');
     });
 });
 
-// Start the server
-const PORT = 3001;
-server.listen(PORT, () => {
-    console.log(`Private chat server running on http://localhost:${PORT}`);
+server.listen(3000, () => {
+    console.log('Server is running on port 3000');
 });
