@@ -16,7 +16,7 @@ if (!fs.existsSync(PRO_FOLDER)) {
     fs.mkdirSync(PRO_FOLDER);
 }
 
-// Set up file storage for uploads
+// Set up file storage
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
         cb(null, PRO_FOLDER);
@@ -28,20 +28,32 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
-// Serve static files
 app.use(express.static(__dirname));
 app.use(express.json());
 
-// API to upload files
+// Handle file uploads
 app.post('/upload', upload.single('file'), (req, res) => {
-    if (!req.file) {
-        return res.status(400).json({ error: 'No file uploaded' });
-    }
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+    const roomId = req.body.roomId;
+    if (!roomId) return res.status(400).json({ error: 'Missing room ID' });
+
     const fileUrl = `/PRO/${req.file.filename}`;
+    
+    const fileData = {
+        sender: "Anonymous",
+        files: fileUrl,
+        fileName: req.file.originalname,
+        timestamp: format12Hour(Date.now())
+    };
+
+    saveMessage(roomId, fileData);
+    io.to(roomId).emit('private message', fileData);
+
     res.json({ fileUrl });
 });
 
-// Helper function to format timestamp
+// Helper function to format timestamps in 12-hour format
 function format12Hour(timestamp) {
     let date = new Date(timestamp);
     let hours = date.getHours();
@@ -52,17 +64,15 @@ function format12Hour(timestamp) {
     return `${hours}:${minutes} ${ampm}`;
 }
 
-// Function to get file path for a room
+// Get the file path for a room
 function getRoomFilePath(roomId) {
     return path.join(__dirname, PRO_FOLDER, `pro${roomId}.json`);
 }
 
-// Function to read messages from JSON file
+// Get messages from a room
 function getMessages(roomId) {
     const filePath = getRoomFilePath(roomId);
-    if (!fs.existsSync(filePath)) {
-        return [];
-    }
+    if (!fs.existsSync(filePath)) return [];
     try {
         return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
     } catch (err) {
@@ -71,7 +81,7 @@ function getMessages(roomId) {
     }
 }
 
-// Function to save messages to JSON file
+// Save message to a room
 function saveMessage(roomId, messageData) {
     const filePath = getRoomFilePath(roomId);
     let messages = getMessages(roomId);
@@ -80,14 +90,14 @@ function saveMessage(roomId, messageData) {
 }
 
 io.on('connection', (socket) => {
-    console.log('A user connected to private chat.');
+    console.log('A user connected.');
 
     socket.on('create private', (data) => {
         const { roomId } = data;
         const filePath = getRoomFilePath(roomId);
         if (!fs.existsSync(filePath)) {
             fs.writeFileSync(filePath, JSON.stringify([], null, 2));
-            console.log(`Room ${roomId} created successfully.`);
+            console.log(`Room ${roomId} created.`);
         }
     });
 
@@ -112,21 +122,11 @@ io.on('connection', (socket) => {
         io.to(roomId).emit('private message', messageData);
     });
 
-    socket.on('file uploaded', (data) => {
-        const { roomId, sender, fileUrl, fileName } = data;
-        const timestamp = format12Hour(Date.now());
-
-        const fileData = { sender, files: fileUrl, fileName, timestamp };
-        saveMessage(roomId, fileData);
-
-        io.to(roomId).emit('private message', fileData);
-    });
-
     socket.on('disconnect', () => {
         console.log('A user disconnected');
     });
 });
 
 server.listen(3000, () => {
-    console.log('Server is running on port 3000');
+    console.log('Server running on port 3000');
 });
