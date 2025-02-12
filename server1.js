@@ -1,4 +1,4 @@
-require('dotenv').config(); // Load environment variables
+require('dotenv').config();
 const express = require('express');
 const http = require('http');
 const io = require('socket.io');
@@ -6,34 +6,43 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
-const app = express(); // Initialize express app
-const server = http.createServer(app); // Create HTTP server
-const socketIO = io(server); // Initialize Socket.IO
+const app = express();
+const server = http.createServer(app);
+const socketIO = io(server);
 
-// Ensure NAFIJ directory exists
 const NAFIJ_DIR = path.join(__dirname, 'NAFIJ');
-if (!fs.existsSync(NAFIJ_DIR)) {
-  fs.mkdirSync(NAFIJ_DIR);
-}
+const NAFIJ_JSON = path.join(NAFIJ_DIR, 'nafij.json');
+
+// Ensure necessary folders and files exist
+if (!fs.existsSync(NAFIJ_DIR)) fs.mkdirSync(NAFIJ_DIR);
+if (!fs.existsSync(NAFIJ_JSON)) fs.writeFileSync(NAFIJ_JSON, JSON.stringify([]));
 
 // Serve static files
-app.use(express.static('public'));
+app.use(express.static(NAFIJ_DIR));
 
 // File upload setup
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, NAFIJ_DIR); // Save files to NAFIJ folder
-  },
-  filename: (req, file, cb) => {
-    cb(null, Date.now() + '-' + file.originalname);
-  },
+  destination: (req, file, cb) => cb(null, NAFIJ_DIR),
+  filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname),
 });
 
 const upload = multer({ storage });
 
 // Route for file uploads
 app.post('/upload', upload.single('file'), (req, res) => {
-  const fileUrl = `https://chatv1.up.railway.app/uploads/${req.file.filename}`;
+  const fileUrl = `/NAFIJ/${req.file.filename}`; // Adjusted file path
+  const messageData = {
+    sender: 'System',
+    message: `File uploaded: ${req.file.filename}`,
+    fileUrl,
+    timestamp: new Date().toISOString(),
+  };
+
+  // Save to nafij.json
+  const chatHistory = JSON.parse(fs.readFileSync(NAFIJ_JSON, 'utf-8'));
+  chatHistory.push(messageData);
+  fs.writeFileSync(NAFIJ_JSON, JSON.stringify(chatHistory, null, 2));
+
   res.json({ fileUrl });
 });
 
@@ -41,73 +50,47 @@ app.post('/upload', upload.single('file'), (req, res) => {
 socketIO.on('connection', (socket) => {
   console.log('A user connected');
 
-  // Join a private room
-  socket.on('join private', (data) => {
-    const { roomId, username } = data;
-    socket.join(roomId);
+  // Send chat history on connection
+  const chatHistory = JSON.parse(fs.readFileSync(NAFIJ_JSON, 'utf-8'));
+  socket.emit('load messages', chatHistory);
 
-    // Create a JSON file for the room if it doesn't exist
-    const roomFile = path.join(NAFIJ_DIR, `nafij_${roomId}.json`);
-    if (!fs.existsSync(roomFile)) {
-      fs.writeFileSync(roomFile, JSON.stringify([]));
-    }
-
-    // Emit room ID to the user
-    socket.emit('room joined', { roomId });
-
-    // Send existing messages to the user
-    const messages = JSON.parse(fs.readFileSync(roomFile, 'utf-8'));
-    socket.emit('load messages', messages);
-  });
-
-  // Send a private message
+  // Handle new messages
   socket.on('private message', (data) => {
-    const { roomId, sender, message } = data;
-    const roomFile = path.join(NAFIJ_DIR, `nafij_${roomId}.json`);
-
     const newMessage = {
-      sender,
-      message,
+      sender: data.sender,
+      message: data.message,
       timestamp: new Date().toISOString(),
     };
 
-    // Save message to the room's JSON file
-    const messages = JSON.parse(fs.readFileSync(roomFile, 'utf-8'));
-    messages.push(newMessage);
-    fs.writeFileSync(roomFile, JSON.stringify(messages, null, 2));
+    // Save to nafij.json
+    const chatHistory = JSON.parse(fs.readFileSync(NAFIJ_JSON, 'utf-8'));
+    chatHistory.push(newMessage);
+    fs.writeFileSync(NAFIJ_JSON, JSON.stringify(chatHistory, null, 2));
 
-    // Broadcast the message to the room
-    socketIO.to(roomId).emit('private message', newMessage);
+    // Broadcast message to all clients
+    socketIO.emit('private message', newMessage);
   });
 
   // Handle file uploads
   socket.on('file uploaded', (data) => {
-    const { roomId, sender, fileUrl, fileName } = data;
-    const roomFile = path.join(NAFIJ_DIR, `nafij_${roomId}.json`);
-
     const fileMessage = {
-      sender,
-      message: `File uploaded: <a href="${fileUrl}" target="_blank">${fileName}</a>`,
+      sender: data.sender,
+      message: `File uploaded: <a href="${data.fileUrl}" target="_blank">${data.fileName}</a>`,
+      fileUrl: data.fileUrl,
       timestamp: new Date().toISOString(),
     };
 
-    // Save file message to the room's JSON file
-    const messages = JSON.parse(fs.readFileSync(roomFile, 'utf-8'));
-    messages.push(fileMessage);
-    fs.writeFileSync(roomFile, JSON.stringify(messages, null, 2));
+    // Save to nafij.json
+    const chatHistory = JSON.parse(fs.readFileSync(NAFIJ_JSON, 'utf-8'));
+    chatHistory.push(fileMessage);
+    fs.writeFileSync(NAFIJ_JSON, JSON.stringify(chatHistory, null, 2));
 
-    // Broadcast the file message to the room
-    socketIO.to(roomId).emit('private message', fileMessage);
+    // Broadcast file message
+    socketIO.emit('private message', fileMessage);
   });
 
-  // Handle user disconnect
-  socket.on('disconnect', () => {
-    console.log('User disconnected');
-  });
+  socket.on('disconnect', () => console.log('User disconnected'));
 });
 
-// Start the server
 const PRIVATE_PORT = process.env.PRIVATE_PORT || 8081;
-server.listen(PRIVATE_PORT, () => {
-  console.log(`🚀 Private chat server is running on port ${PRIVATE_PORT}`);
-});
+server.listen(PRIVATE_PORT, () => console.log(`🚀 Private chat server running on port ${PRIVATE_PORT}`));
