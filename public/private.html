@@ -3,162 +3,116 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Private Chat Room</title>
+    <title>Private Chat</title>
+    <script src="/socket.io/socket.io.js"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
-            background-color: #f0f0f0;
+            background-color: #f2f2f2;
+            margin: 0;
             padding: 20px;
+            text-align: center;
         }
         #chat-container {
-            background-color: white;
-            padding: 20px;
-            max-width: 600px;
+            max-width: 500px;
             margin: 0 auto;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-            border-radius: 8px;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+        }
+        input, button {
+            margin: 5px;
+            padding: 10px;
+            font-size: 16px;
         }
         #messages {
-            height: 300px;
+            text-align: left;
+            max-height: 300px;
             overflow-y: auto;
-            margin-bottom: 20px;
-            padding: 10px;
             border: 1px solid #ccc;
-            border-radius: 4px;
-            background-color: #f9f9f9;
-        }
-        #message-input {
-            width: calc(100% - 100px);
             padding: 10px;
-            margin-right: 10px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-        }
-        #send-button {
-            padding: 10px 15px;
-            cursor: pointer;
-            background-color: #4CAF50;
-            color: white;
-            border: none;
-            border-radius: 4px;
-        }
-        #upload-input {
-            display: none;
-        }
-        #upload-button {
-            padding: 10px 15px;
-            cursor: pointer;
-            background-color: #007BFF;
-            color: white;
-            border: none;
-            border-radius: 4px;
+            margin-top: 10px;
+            background: #fafafa;
+            border-radius: 5px;
         }
         .message {
-            padding: 5px 0;
-            border-bottom: 1px solid #ccc;
+            padding: 5px;
+            border-bottom: 1px solid #ddd;
         }
-        .file-message {
-            padding: 5px 0;
-            border-bottom: 1px solid #ccc;
+        .file-message a {
+            color: blue;
+            text-decoration: none;
         }
     </style>
 </head>
 <body>
     <div id="chat-container">
-        <h3>Private Chat Room</h3>
-        <input type="text" id="room-id" placeholder="Enter Room ID" />
-        <button id="join-room">Join Room</button>
-        <button id="create-room">Create Room</button>
+        <h2>Private Chat</h2>
+        <input type="text" id="roomIdInput" placeholder="Enter Room ID">
+        <button onclick="createRoom()">Create Room</button>
+        <button onclick="joinRoom()">Join Room</button>
+
+        <h3 id="roomTitle"></h3>
         <div id="messages"></div>
-        <input type="text" id="message-input" placeholder="Type your message" />
-        <button id="send-button">Send</button>
-        <input type="file" id="upload-input" />
-        <button id="upload-button">Upload File</button>
+
+        <input type="text" id="messageInput" placeholder="Type a message">
+        <button onclick="sendMessage()">Send</button>
+
+        <input type="file" id="fileInput">
+        <button onclick="sendFile()">Send File</button>
     </div>
 
-    <script src="/socket.io/socket.io.js"></script>
     <script>
         const socket = io();
-        const roomIdInput = document.getElementById('room-id');
-        const messagesDiv = document.getElementById('messages');
-        const messageInput = document.getElementById('message-input');
-        const sendButton = document.getElementById('send-button');
-        const uploadInput = document.getElementById('upload-input');
-        const uploadButton = document.getElementById('upload-button');
-        const joinButton = document.getElementById('join-room');
-        const createButton = document.getElementById('create-room');
-        let roomId = '';
+        let currentRoomId = null;
 
-        createButton.addEventListener('click', () => {
-            roomId = Math.floor(Math.random() * 10000);  // Random Room ID
-            socket.emit('create private', { roomId });
-            roomIdInput.value = roomId;
-        });
+        function createRoom() {
+            let roomId = document.getElementById("roomIdInput").value;
+            if (!roomId) return alert("Enter a room ID!");
+            currentRoomId = roomId;
+            socket.emit("create private", { roomId });
+            document.getElementById("roomTitle").innerText = "Room: " + roomId;
+        }
 
-        joinButton.addEventListener('click', () => {
-            roomId = roomIdInput.value;
-            if (roomId) {
-                socket.emit('join private', { roomId, username: 'User' });
-            } else {
-                alert("Please enter a valid room ID");
-            }
-        });
+        function joinRoom() {
+            let roomId = document.getElementById("roomIdInput").value;
+            if (!roomId) return alert("Enter a room ID!");
+            currentRoomId = roomId;
+            socket.emit("join private", { roomId, username: "Anonymous" });
+            document.getElementById("roomTitle").innerText = "Room: " + roomId;
+        }
 
-        sendButton.addEventListener('click', () => {
-            const message = messageInput.value;
-            if (message.trim()) {
-                socket.emit('private message', {
-                    roomId,
-                    sender: 'User',
-                    message
-                });
-                messageInput.value = '';
-            }
-        });
+        function sendMessage() {
+            let message = document.getElementById("messageInput").value;
+            if (!message || !currentRoomId) return;
+            
+            socket.emit("private message", { roomId: currentRoomId, sender: "Anonymous", message });
+            document.getElementById("messageInput").value = "";
+        }
 
-        uploadButton.addEventListener('click', () => {
-            uploadInput.click();
-        });
+        function sendFile() {
+            let fileInput = document.getElementById("fileInput");
+            let file = fileInput.files[0];
+            if (!file || !currentRoomId) return;
 
-        uploadInput.addEventListener('change', () => {
-            const file = uploadInput.files[0];
-            if (file) {
-                const formData = new FormData();
-                formData.append('file', file);
-                fetch('/upload', {
-                    method: 'POST',
-                    body: formData
-                })
+            let formData = new FormData();
+            formData.append("file", file);
+            formData.append("roomId", currentRoomId);
+
+            fetch("/upload", { method: "POST", body: formData })
                 .then(response => response.json())
-                .then(data => {
-                    socket.emit('file uploaded', {
-                        roomId,
-                        sender: 'User',
-                        fileUrl: data.fileUrl,
-                        fileName: file.name
-                    });
-                });
-            }
-        });
+                .then(data => console.log("File uploaded:", data));
+        }
 
-        socket.on('load messages', (messages) => {
-            messagesDiv.innerHTML = '';
+        socket.on("load messages", (messages) => {
+            let messageBox = document.getElementById("messages");
+            messageBox.innerHTML = "";
             messages.forEach(msg => {
-                if (msg.message) {
-                    messagesDiv.innerHTML += `<div class="message"><strong>${msg.sender}:</strong> ${msg.message} <span>${msg.timestamp}</span></div>`;
-                }
-                if (msg.files) {
-                    messagesDiv.innerHTML += `<div class="file-message"><strong>${msg.sender}:</strong> <a href="${msg.files}" target="_blank">Download File</a> <span>${msg.timestamp}</span></div>`;
-                }
+                messageBox.innerHTML += msg.files
+                    ? `<p><a href="${msg.files}" download>${msg.fileName}</a> (${msg.timestamp})</p>`
+                    : `<p>${msg.sender}: ${msg.message} (${msg.timestamp})</p>`;
             });
-        });
-
-        socket.on('private message', (messageData) => {
-            messagesDiv.innerHTML += `<div class="message"><strong>${messageData.sender}:</strong> ${messageData.message} <span>${messageData.timestamp}</span></div>`;
-        });
-
-        socket.on('room joined', (data) => {
-            console.log(`Joined room: ${data.roomId}`);
         });
     </script>
 </body>
