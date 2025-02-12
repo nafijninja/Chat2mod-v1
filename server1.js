@@ -23,7 +23,7 @@ if (!fs.existsSync(MESSAGES_FILE)) {
   fs.writeFileSync(MESSAGES_FILE, JSON.stringify([]));
 }
 
-// Connect to MongoDB (optional, if you still want to use MongoDB)
+// Connect to MongoDB
 mongoose.set('strictQuery', false); // Suppress deprecation warning
 mongoose.connect(process.env.MONGO_URI, {
   useNewUrlParser: true,
@@ -51,6 +51,12 @@ const upload = multer({ storage });
 app.post('/upload', upload.single('file'), (req, res) => {
   const fileUrl = `https://chatv1.up.railway.app/uploads/${req.file.filename}`;
   res.json({ fileUrl });
+});
+
+// Route to fetch messages
+app.get('/messages', (req, res) => {
+  const messages = JSON.parse(fs.readFileSync(MESSAGES_FILE, 'utf-8'));
+  res.json(messages);
 });
 
 // Socket.IO logic
@@ -114,13 +120,12 @@ socketIO.on('connection', (socket) => {
   });
 });
 
-
 // Route to fetch messages
 app.get('/messages', (req, res) => {
   const messages = JSON.parse(fs.readFileSync(MESSAGES_FILE, 'utf-8'));
   res.json(messages);
 });
-      
+                                
 // Start the server
 const PRIVATE_PORT = process.env.PRIVATE_PORT || 8081;
 server.listen(PRIVATE_PORT, () => {
