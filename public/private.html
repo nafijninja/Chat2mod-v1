@@ -3,172 +3,149 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Private Chat</title>
-    <link rel="stylesheet" href="styles.css">
+    <title>Private Chat Room</title>
     <style>
+        /* Simple styles for the chat */
         body {
             font-family: Arial, sans-serif;
-            background-color: #f4f4f9;
-            margin: 0;
-            padding: 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-        }
-        .chat-container {
-            background-color: #fff;
-            border-radius: 10px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-            width: 90%;
-            max-width: 500px;
+            background-color: #f0f0f0;
             padding: 20px;
-            text-align: center;
         }
-        .messages {
+        #chat-container {
+            background-color: white;
+            padding: 20px;
+            max-width: 600px;
+            margin: 0 auto;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+        }
+        #messages {
             height: 300px;
-            overflow-y: scroll;
-            border: 1px solid #ccc;
-            border-radius: 5px;
+            overflow-y: auto;
+            margin-bottom: 20px;
             padding: 10px;
-            margin-bottom: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
             background-color: #f9f9f9;
         }
-        input, button {
+        #message-input {
+            width: calc(100% - 100px);
             padding: 10px;
-            margin: 5px 0;
-            width: 100%;
+            margin-right: 10px;
             border: 1px solid #ccc;
-            border-radius: 5px;
-            font-size: 16px;
+            border-radius: 4px;
         }
-        button {
-            background-color: #007bff;
+        #send-button {
+            padding: 10px 15px;
+            cursor: pointer;
+            background-color: #4CAF50;
             color: white;
             border: none;
-            cursor: pointer;
+            border-radius: 4px;
         }
-        button:hover {
-            background-color: #0056b3;
-        }
-        .hidden {
+        #upload-input {
             display: none;
         }
-        .room-id {
-            font-size: 18px;
-            font-weight: bold;
-            margin-bottom: 10px;
+        .message {
+            padding: 5px 0;
+            border-bottom: 1px solid #ccc;
+        }
+        .file-message {
+            padding: 5px 0;
+            border-bottom: 1px solid #ccc;
         }
     </style>
 </head>
 <body>
-
-<div class="chat-container">
-    <h1>Private Chat</h1>
-    <div id="room-entry">
-        <input type="text" id="room-id" placeholder="Enter Room ID">
-        <button onclick="joinRoom()">Enter Room</button>
-        <p>Don't have a room? <button onclick="createRoom()">Create One</button></p>
+    <div id="chat-container">
+        <h3>Private Chat Room</h3>
+        <input type="text" id="room-id" placeholder="Enter Room ID" />
+        <button id="join-room">Join Room</button>
+        <div id="messages"></div>
+        <input type="text" id="message-input" placeholder="Type your message" />
+        <button id="send-button">Send</button>
+        <input type="file" id="upload-input" />
+        <button id="upload-button">Upload File</button>
     </div>
-    <div id="chat-section" class="hidden">
-        <div class="room-id" id="room-id-display"></div>
-        <div class="messages" id="messages"></div>
-        <input type="text" id="input" placeholder="Type a message">
-        <button onclick="sendMessage()">Send</button>
-        <input type="file" id="file-input">
-        <button onclick="uploadFile()">Upload File</button>
-    </div>
-</div>
 
-<script src="/socket.io/socket.io.js"></script>
-<script>
-    const socket = io();
-    let currentRoomId = null;
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
 
-    function format12Hour(timestamp) {
-        let date = new Date(timestamp);
-        let hours = date.getHours();
-        let minutes = date.getMinutes();
-        let ampm = hours >= 12 ? 'PM' : 'AM';
-        hours = hours % 12 || 12;
-        minutes = minutes < 10 ? '0' + minutes : minutes;
-        return `${hours}:${minutes} ${ampm}`;
-    }
+        const roomIdInput = document.getElementById('room-id');
+        const messagesDiv = document.getElementById('messages');
+        const messageInput = document.getElementById('message-input');
+        const sendButton = document.getElementById('send-button');
+        const uploadInput = document.getElementById('upload-input');
+        const uploadButton = document.getElementById('upload-button');
+        const joinButton = document.getElementById('join-room');
+        let roomId = '';
 
-    function joinRoom() {
-        const roomId = document.getElementById('room-id').value;
-        if (roomId) {
-            currentRoomId = roomId;
-            socket.emit('join private', { roomId, username: 'You' });
-            showChatSection();
-        } else {
-            alert('Please enter a room ID.');
-        }
-    }
+        joinButton.addEventListener('click', () => {
+            roomId = roomIdInput.value;
+            if (roomId) {
+                socket.emit('join private', { roomId, username: 'User' });
+            } else {
+                alert("Please enter a valid room ID");
+            }
+        });
 
-    function createRoom() {
-        const roomId = Math.random().toString(36).substring(7);
-        currentRoomId = roomId;
-        document.getElementById('room-id').value = roomId;
-        socket.emit('join private', { roomId, username: 'You' });
-        showChatSection();
-    }
-
-    function showChatSection() {
-        document.getElementById('room-entry').classList.add('hidden');
-        document.getElementById('chat-section').classList.remove('hidden');
-        document.getElementById('room-id-display').innerText = `Room ID: ${currentRoomId}`;
-    }
-
-    function sendMessage() {
-        const input = document.getElementById('input');
-        const message = input.value;
-        if (currentRoomId && message) {
-            socket.emit('private message', {
-                roomId: currentRoomId,
-                sender: 'You',
-                message: message,
-            });
-            input.value = '';
-        }
-    }
-
-    function uploadFile() {
-        const fileInput = document.getElementById('file-input');
-        const file = fileInput.files[0];
-        if (!file) return alert('Select a file first.');
-
-        const formData = new FormData();
-        formData.append('file', file);
-
-        fetch('/upload', { method: 'POST', body: formData })
-            .then(response => response.json())
-            .then(data => {
-                socket.emit('file uploaded', {
-                    roomId: currentRoomId,
-                    sender: 'You',
-                    fileUrl: data.fileUrl,
-                    fileName: file.name,
+        sendButton.addEventListener('click', () => {
+            const message = messageInput.value;
+            if (message.trim()) {
+                socket.emit('private message', {
+                    roomId,
+                    sender: 'User',
+                    message
                 });
+                messageInput.value = '';
+            }
+        });
+
+        uploadButton.addEventListener('click', () => {
+            uploadInput.click();
+        });
+
+        uploadInput.addEventListener('change', () => {
+            const file = uploadInput.files[0];
+            if (file) {
+                const formData = new FormData();
+                formData.append('file', file);
+                fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    socket.emit('file uploaded', {
+                        roomId,
+                        sender: 'User',
+                        fileUrl: data.fileUrl,
+                        fileName: file.name
+                    });
+                });
+            }
+        });
+
+        socket.on('load messages', (messages) => {
+            messagesDiv.innerHTML = '';  // Clear previous messages
+            messages.forEach(msg => {
+                if (msg.message) {
+                    messagesDiv.innerHTML += `<div class="message"><strong>${msg.sender}:</strong> ${msg.message} <span>${msg.timestamp}</span></div>`;
+                }
+                if (msg.files) {
+                    messagesDiv.innerHTML += `<div class="file-message"><strong>${msg.sender}:</strong> <a href="${msg.files}" target="_blank">Download File</a> <span>${msg.timestamp}</span></div>`;
+                }
             });
-    }
+        });
 
-    socket.on('private message', (data) => {
-        const messagesDiv = document.getElementById('messages');
-        messagesDiv.innerHTML += `<div><strong>${data.sender}:</strong> ${data.message} <span style="font-size: 12px;">(${format12Hour(data.timestamp)})</span></div>`;
-    });
+        socket.on('private message', (messageData) => {
+            messagesDiv.innerHTML += `<div class="message"><strong>${messageData.sender}:</strong> ${messageData.message} <span>${messageData.timestamp}</span></div>`;
+        });
 
-    socket.on('room joined', (data) => {
-        document.getElementById('room-id-display').innerText = `Room ID: ${data.roomId}`;
-    });
-
-    socket.on('load messages', (messages) => {
-        const messagesDiv = document.getElementById('messages');
-        messagesDiv.innerHTML = messages
-            .map(msg => `<div><strong>${msg.sender}:</strong> ${msg.message} <span style="font-size: 12px;">(${format12Hour(msg.timestamp)})</span></div>`)
-            .join('');
-    });
-</script>
-
+        socket.on('room joined', (data) => {
+            console.log(`Joined room: ${data.roomId}`);
+        });
+    </script>
 </body>
 </html>
