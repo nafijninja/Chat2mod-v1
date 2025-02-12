@@ -17,13 +17,7 @@ if (!fs.existsSync(NAFIJ_DIR)) {
   fs.mkdirSync(NAFIJ_DIR);
 }
 
-// Ensure nafij.json file exists
-const MESSAGES_FILE = path.join(NAFIJ_DIR, 'nafij.json');
-if (!fs.existsSync(MESSAGES_FILE)) {
-  fs.writeFileSync(MESSAGES_FILE, JSON.stringify([]));
-}
-
-// Connect to MongoDB
+// Connect to MongoDB (optional, if you still want to use MongoDB)
 mongoose.set('strictQuery', false); // Suppress deprecation warning
 mongoose.connect(process.env.MONGO_URI, {
   useNewUrlParser: true,
@@ -53,12 +47,6 @@ app.post('/upload', upload.single('file'), (req, res) => {
   res.json({ fileUrl });
 });
 
-// Route to fetch messages
-app.get('/messages', (req, res) => {
-  const messages = JSON.parse(fs.readFileSync(MESSAGES_FILE, 'utf-8'));
-  res.json(messages);
-});
-
 // Socket.IO logic
 socketIO.on('connection', (socket) => {
   console.log('A user connected');
@@ -68,50 +56,58 @@ socketIO.on('connection', (socket) => {
     const { roomId, username } = data;
     socket.join(roomId);
 
-    // Add user to the room in the database (optional)
-    let room = await Room.findOne({ roomId });
-    if (!room) {
-      room = new Room({ roomId, users: [username] });
-    } else {
-      room.users.push(username);
+    // Create a JSON file for the room if it doesn't exist
+    const roomFile = path.join(NAFIJ_DIR, `nafij_${roomId}.json`);
+    if (!fs.existsSync(roomFile)) {
+      fs.writeFileSync(roomFile, JSON.stringify([]));
     }
-    await room.save();
 
-    socket.emit('private status', `Joined private room: ${roomId}`);
+    // Emit room ID to the user
+    socket.emit('room joined', { roomId });
+
+    // Send existing messages to the user
+    const messages = JSON.parse(fs.readFileSync(roomFile, 'utf-8'));
+    socket.emit('load messages', messages);
   });
 
   // Send a private message
   socket.on('private message', (data) => {
-    const message = {
-      sender: data.sender,
-      message: data.message,
+    const { roomId, sender, message } = data;
+    const roomFile = path.join(NAFIJ_DIR, `nafij_${roomId}.json`);
+
+    const newMessage = {
+      sender,
+      message,
       timestamp: new Date().toISOString(),
     };
 
-    // Save message to nafij.json
-    const messages = JSON.parse(fs.readFileSync(MESSAGES_FILE, 'utf-8'));
-    messages.push(message);
-    fs.writeFileSync(MESSAGES_FILE, JSON.stringify(messages, null, 2));
+    // Save message to the room's JSON file
+    const messages = JSON.parse(fs.readFileSync(roomFile, 'utf-8'));
+    messages.push(newMessage);
+    fs.writeFileSync(roomFile, JSON.stringify(messages, null, 2));
 
     // Broadcast the message to the room
-    socketIO.to(data.roomId).emit('private message', message);
+    socketIO.to(roomId).emit('private message', newMessage);
   });
 
   // Handle file uploads
   socket.on('file uploaded', (data) => {
+    const { roomId, sender, fileUrl, fileName } = data;
+    const roomFile = path.join(NAFIJ_DIR, `nafij_${roomId}.json`);
+
     const fileMessage = {
-      sender: data.sender,
-      message: `File uploaded: <a href="${data.fileUrl}" target="_blank">${data.fileName}</a>`,
+      sender,
+      message: `File uploaded: <a href="${fileUrl}" target="_blank">${fileName}</a>`,
       timestamp: new Date().toISOString(),
     };
 
-    // Save file message to nafij.json
-    const messages = JSON.parse(fs.readFileSync(MESSAGES_FILE, 'utf-8'));
+    // Save file message to the room's JSON file
+    const messages = JSON.parse(fs.readFileSync(roomFile, 'utf-8'));
     messages.push(fileMessage);
-    fs.writeFileSync(MESSAGES_FILE, JSON.stringify(messages, null, 2));
+    fs.writeFileSync(roomFile, JSON.stringify(messages, null, 2));
 
     // Broadcast the file message to the room
-    socketIO.to(data.roomId).emit('private message', fileMessage);
+    socketIO.to(roomId).emit('private message', fileMessage);
   });
 
   // Handle user disconnect
@@ -120,14 +116,8 @@ socketIO.on('connection', (socket) => {
   });
 });
 
-// Route to fetch messages
-app.get('/messages', (req, res) => {
-  const messages = JSON.parse(fs.readFileSync(MESSAGES_FILE, 'utf-8'));
-  res.json(messages);
-});
-                                
 // Start the server
 const PRIVATE_PORT = process.env.PRIVATE_PORT || 8081;
 server.listen(PRIVATE_PORT, () => {
   console.log(`🚀 Private chat server is running on port ${PRIVATE_PORT}`);
-});
+})
