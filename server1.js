@@ -1,137 +1,70 @@
 const express = require('express');
-const http = require('http');
-const socketIo = require('socket.io');
 const fs = require('fs');
 const path = require('path');
-const multer = require('multer');
-
 const app = express();
-const server = http.createServer(app);
-const io = socketIo(server);
 
-const PRO_FOLDER = 'PRO';
+// Serve static files (for example, uploaded files)
+app.use('/NAFIJ', express.static(path.join(__dirname, 'NAFIJ')));
 
-// Ensure the PRO folder exists
-if (!fs.existsSync(PRO_FOLDER)) {
-    fs.mkdirSync(PRO_FOLDER);
-}
-
-// Set up file storage for multer
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, PRO_FOLDER);
-    },
-    filename: (req, file, cb) => {
-        cb(null, `${Date.now()}_${file.originalname}`);
-    }
+// To allow all methods (GET, POST, PUT, DELETE, etc.)
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  next();
 });
 
-const upload = multer({ storage });
-
-app.use(express.static(__dirname));
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-// Helper function to format timestamps in 12-hour format
-function format12Hour(timestamp) {
-    let date = new Date(timestamp);
-    let hours = date.getHours();
-    let minutes = date.getMinutes();
-    let ampm = hours >= 12 ? 'PM' : 'AM';
-    hours = hours % 12 || 12;
-    minutes = minutes < 10 ? '0' + minutes : minutes;
-    return `${hours}:${minutes} ${ampm}`;
-}
+// Handle chat room messages
+app.get('/getMessages/:roomId', (req, res) => {
+  const roomId = req.params.roomId;
+  const filePath = path.join(__dirname, 'NAFIJ', `nafij${roomId}.json`);
 
-// Get the file path for a room
-function getRoomFilePath(roomId) {
-    return path.join(__dirname, PRO_FOLDER, `pro${roomId}.json`);
-}
-
-// Get messages from a room
-function getMessages(roomId) {
-    const filePath = getRoomFilePath(roomId);
-    if (!fs.existsSync(filePath)) return [];
-    try {
-        return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-    } catch (err) {
-        console.error('Error reading messages:', err);
-        return [];
-    }
-}
-
-// Save message to a room
-function saveMessage(roomId, messageData) {
-    const filePath = getRoomFilePath(roomId);
-    let messages = getMessages(roomId);
-    messages.push(messageData);
-    fs.writeFileSync(filePath, JSON.stringify(messages, null, 2));
-}
-
-// Handle file uploads
-app.post('/upload', upload.single('file'), (req, res) => {
-    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-
-    const roomId = req.body.roomId;
-    if (!roomId) return res.status(400).json({ error: 'Missing room ID' });
-
-    const fileUrl = `/PRO/${req.file.filename}`;
-    
-    const fileData = {
-        sender: "Anonymous",
-        files: fileUrl,
-        fileName: req.file.originalname,
-        timestamp: format12Hour(Date.now())
-    };
-
-    saveMessage(roomId, fileData);
-    io.to(roomId).emit('private message', fileData);
-
-    res.json({ fileUrl });
+  // Check if the room file exists
+  if (fs.existsSync(filePath)) {
+    const data = fs.readFileSync(filePath, 'utf-8');
+    const messages = JSON.parse(data);
+    res.json(messages);
+  } else {
+    // If the file doesn't exist, return an empty array
+    res.json([]);
+  }
 });
 
-// Socket.IO events
-io.on('connection', (socket) => {
-    console.log('A user connected.');
+// Handle sending messages
+app.post('/sendMessage/:roomId', (req, res) => {
+  const roomId = req.params.roomId;
+  const { message, files, timestamp } = req.body;
+  const filePath = path.join(__dirname, 'NAFIJ', `nafij${roomId}.json`);
 
-    // Create a private room
-    socket.on('create private', (data) => {
-        const { roomId } = data;
-        const filePath = getRoomFilePath(roomId);
-        if (!fs.existsSync(filePath)) {
-            fs.writeFileSync(filePath, JSON.stringify([], null, 2));
-            console.log(`Room ${roomId} created.`);
-        }
-    });
+  // Prepare message data
+  const newMessage = {
+    message: message || "",
+    files: files || "",
+    timestamp: timestamp || new Date().toLocaleString()
+  };
 
-    // Join a private room
-    socket.on('join private', (data) => {
-        const { roomId, username } = data;
-        socket.join(roomId);
+  let messages = [];
+  
+  // Check if room file exists and read it
+  if (fs.existsSync(filePath)) {
+    const data = fs.readFileSync(filePath, 'utf-8');
+    messages = JSON.parse(data);
+  }
 
-        const messages = getMessages(roomId);
-        socket.emit('load messages', messages);
+  // Add the new message
+  messages.push(newMessage);
 
-        console.log(`${username} joined room ${roomId}`);
-        io.to(roomId).emit('room joined', { roomId });
-    });
+  // Save the messages back to the file
+  fs.writeFileSync(filePath, JSON.stringify(messages, null, 2));
 
-    // Send a private message
-    socket.on('private message', (data) => {
-        const { roomId, sender, message } = data;
-        const timestamp = format12Hour(Date.now());
-
-        const messageData = { sender, message, timestamp };
-        saveMessage(roomId, messageData);
-
-        io.to(roomId).emit('private message', messageData);
-    });
-
-    // Disconnect event
-    socket.on('disconnect', () => {
-        console.log('A user disconnected');
-    });
+  res.status(200).json({ status: 'Message sent successfully' });
 });
 
-server.listen(8081, () => {
-    console.log('Server running on port 8081');
+// Server listening
+const port = 3000;
+app.listen(port, () => {
+  console.log(`Server running on http://localhost:${port}`);
 });
