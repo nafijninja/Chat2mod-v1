@@ -1,6 +1,5 @@
 require('dotenv').config(); // Load environment variables
 const express = require('express');
-const mongoose = require('mongoose');
 const http = require('http');
 const io = require('socket.io');
 const multer = require('multer');
@@ -43,7 +42,7 @@ socketIO.on('connection', (socket) => {
   console.log('A user connected');
 
   // Join a private room
-  socket.on('join private', async (data) => {
+  socket.on('join private', (data) => {
     const { roomId, username } = data;
     socket.join(roomId);
 
