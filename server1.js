@@ -1,86 +1,126 @@
-require('dotenv').config();
 const express = require('express');
 const http = require('http');
-const socketIO = require('socket.io');
-const multer = require('multer');
-const path = require('path');
+const socketIo = require('socket.io');
 const fs = require('fs');
+const path = require('path');
+const multer = require('multer');
 
 const app = express();
 const server = http.createServer(app);
-const io = socketIO(server);
+const io = socketIo(server);
 
-const NAFIJ_DIR = path.join(__dirname, 'NAFIJ');
-if (!fs.existsSync(NAFIJ_DIR)) fs.mkdirSync(NAFIJ_DIR);
+const CHAT_FOLDER = 'NAFIJ';
 
-app.use(express.static('public'));
+// Ensure the NAFIJ folder exists
+if (!fs.existsSync(CHAT_FOLDER)) {
+    fs.mkdirSync(CHAT_FOLDER);
+}
 
+// Set up file storage for uploads
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, NAFIJ_DIR),
-  filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname),
+    destination: (req, file, cb) => {
+        cb(null, CHAT_FOLDER);
+    },
+    filename: (req, file, cb) => {
+        cb(null, `${Date.now()}_${file.originalname}`);
+    }
 });
+
 const upload = multer({ storage });
 
-app.post('/upload', upload.single('file'), (req, res) => {
-  if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+// Serve static files
+app.use(express.static(__dirname));
+app.use(express.json());
 
-  const fileUrl = `/NAFIJ/${req.file.filename}`;
-  res.json({ fileUrl, fileName: req.file.filename });
+// API to upload files
+app.post('/upload', upload.single('file'), (req, res) => {
+    if (!req.file) {
+        return res.status(400).json({ error: 'No file uploaded' });
+    }
+    const fileUrl = `/NAFIJ/${req.file.filename}`;
+    res.json({ fileUrl });
 });
+
+// Helper function to format timestamp
+function format12Hour(timestamp) {
+    let date = new Date(timestamp);
+    let hours = date.getHours();
+    let minutes = date.getMinutes();
+    let ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12 || 12;
+    minutes = minutes < 10 ? '0' + minutes : minutes;
+    return `${hours}:${minutes} ${ampm}`;
+}
+
+// Function to get file path for a room
+function getRoomFilePath(roomId) {
+    return path.join(__dirname, CHAT_FOLDER, `nafij_${roomId}.json`);
+}
+
+// Function to read messages from JSON file
+function getMessages(roomId) {
+    const filePath = getRoomFilePath(roomId);
+    if (!fs.existsSync(filePath)) {
+        return [];
+    }
+    try {
+        return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+    } catch (err) {
+        console.error('Error reading messages:', err);
+        return [];
+    }
+}
+
+// Function to save messages to JSON file
+function saveMessage(roomId, messageData) {
+    const filePath = getRoomFilePath(roomId);
+    let messages = getMessages(roomId);
+    messages.push(messageData);
+    fs.writeFileSync(filePath, JSON.stringify(messages, null, 2));
+}
 
 io.on('connection', (socket) => {
-  console.log('A user connected');
+    console.log('A user connected to private chat.');
 
-  socket.on('join private', (data) => {
-    const { roomId, username } = data;
-    socket.join(roomId);
+    socket.on('join private', (data) => {
+        const { roomId, username } = data;
+        socket.join(roomId);
 
-    const roomFile = path.join(NAFIJ_DIR, `nafij_${roomId}.json`);
-    if (!fs.existsSync(roomFile)) fs.writeFileSync(roomFile, JSON.stringify([]));
+        // Load previous messages
+        const messages = getMessages(roomId);
+        socket.emit('load messages', messages);
+        
+        console.log(`${username} joined room ${roomId}`);
+        io.to(roomId).emit('room joined', { roomId });
+    });
 
-    socket.emit('room joined', { roomId });
+    socket.on('private message', (data) => {
+        const { roomId, sender, message } = data;
+        const timestamp = format12Hour(Date.now());
 
-    const messages = JSON.parse(fs.readFileSync(roomFile, 'utf-8'));
-    socket.emit('load messages', messages);
-  });
+        const messageData = { sender, message, timestamp };
+        saveMessage(roomId, messageData);
 
-  socket.on('private message', (data) => {
-    const { roomId, sender, message } = data;
-    if (!roomId || !message) return;
+        io.to(roomId).emit('private message', messageData);
+    });
 
-    const roomFile = path.join(NAFIJ_DIR, `nafij_${roomId}.json`);
-    const newMessage = { sender, message, timestamp: new Date().toISOString() };
+    socket.on('file uploaded', (data) => {
+        const { roomId, sender, fileUrl, fileName } = data;
+        const timestamp = format12Hour(Date.now());
 
-    const messages = JSON.parse(fs.readFileSync(roomFile, 'utf-8'));
-    messages.push(newMessage);
-    fs.writeFileSync(roomFile, JSON.stringify(messages, null, 2));
+        const fileData = { sender, files: fileUrl, fileName, timestamp };
+        saveMessage(roomId, fileData);
 
-    io.to(roomId).emit('private message', newMessage);
-  });
+        io.to(roomId).emit('private message', fileData);
+    });
 
-  socket.on('file uploaded', (data) => {
-    const { roomId, sender, fileUrl, fileName } = data;
-    if (!roomId || !fileUrl) return;
-
-    const roomFile = path.join(NAFIJ_DIR, `nafij_${roomId}.json`);
-    const fileMessage = {
-      sender,
-      message: `File: <a href="${fileUrl}" target="_blank">${fileName}</a>`,
-      timestamp: new Date().toISOString(),
-    };
-
-    const messages = JSON.parse(fs.readFileSync(roomFile, 'utf-8'));
-    messages.push(fileMessage);
-    fs.writeFileSync(roomFile, JSON.stringify(messages, null, 2));
-
-    io.to(roomId).emit('private message', fileMessage);
-  });
-
-  socket.on('disconnect', () => {
-    console.log('User disconnected');
-  });
+    socket.on('disconnect', () => {
+        console.log('A user disconnected from private chat.');
+    });
 });
 
-const PORT = process.env.PRIVATE_PORT || 8081;
-server.listen(PORT, () => console.log(`🚀 Private chat server running on port ${PORT}`));
-
+// Start the server
+const PORT = 3001;
+server.listen(PORT, () => {
+    console.log(`Private chat server running on http://localhost:${PORT}`);
+});
