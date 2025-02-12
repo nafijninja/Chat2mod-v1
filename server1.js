@@ -132,11 +132,6 @@ io.on('connection', (socket) => {
     });
 });
 
-// Start the server
-server.listen(3000, () => {
-    console.log('Server running on port 3000');
-});
-
-server.listen(3000, () => {
-    console.log('Server running on port 3000');
+server.listen(8081, () => {
+    console.log('Server running on port 8081');
 });
