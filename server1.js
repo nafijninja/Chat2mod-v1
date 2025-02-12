@@ -17,15 +17,6 @@ if (!fs.existsSync(NAFIJ_DIR)) {
   fs.mkdirSync(NAFIJ_DIR);
 }
 
-// Connect to MongoDB (optional, if you still want to use MongoDB)
-mongoose.set('strictQuery', false); // Suppress deprecation warning
-mongoose.connect(process.env.MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
-  .then(() => console.log('✅ MongoDB Connected (Private Chat)'))
-  .catch((err) => console.error('❌ MongoDB Connection Error:', err));
-
 // Serve static files
 app.use(express.static('public'));
 
@@ -120,4 +111,4 @@ socketIO.on('connection', (socket) => {
 const PRIVATE_PORT = process.env.PRIVATE_PORT || 8081;
 server.listen(PRIVATE_PORT, () => {
   console.log(`🚀 Private chat server is running on port ${PRIVATE_PORT}`);
-})
+});
