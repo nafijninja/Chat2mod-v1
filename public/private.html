@@ -81,6 +81,16 @@
     const socket = io('https://chatv1.up.railway.app'); // Updated WebSocket URL
     let currentRoomId = null;
 
+    // Fetch and display messages from nafij.json
+    const fetchMessages = async () => {
+      const response = await fetch('/messages');
+      const messages = await response.json();
+      const messagesDiv = document.getElementById('messages');
+      messagesDiv.innerHTML = messages
+        .map((msg) => `<div><strong>${msg.sender}:</strong> ${msg.message}</div>`)
+        .join('');
+    };
+
     // Join a private room
     const joinRoom = () => {
       const roomId = document.getElementById('room-id').value;
@@ -88,6 +98,7 @@
         currentRoomId = roomId;
         socket.emit('join private', { roomId, username: 'You' });
         showChatSection();
+        fetchMessages(); // Fetch messages when joining a room
       } else {
         alert('Please enter a room ID.');
       }
@@ -100,6 +111,7 @@
       document.getElementById('room-id').value = roomId;
       socket.emit('join private', { roomId, username: 'You' });
       showChatSection();
+      fetchMessages(); // Fetch messages when creating a room
     };
 
     // Show the chat section
@@ -146,8 +158,8 @@
 
     // Receive private messages
     socket.on('private message', (data) => {
-      const messages = document.getElementById('messages');
-      messages.innerHTML += `<div><strong>${data.sender}:</strong> ${data.message}</div>`;
+      const messagesDiv = document.getElementById('messages');
+      messagesDiv.innerHTML += `<div><strong>${data.sender}:</strong> ${data.message}</div>`;
     });
 
     // Room join status
