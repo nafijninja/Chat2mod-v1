@@ -16,7 +16,7 @@ if (!fs.existsSync(PRO_FOLDER)) {
     fs.mkdirSync(PRO_FOLDER);
 }
 
-// Set up file storage
+// Set up file storage for multer
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
         cb(null, PRO_FOLDER);
@@ -30,28 +30,6 @@ const upload = multer({ storage });
 
 app.use(express.static(__dirname));
 app.use(express.json());
-
-// Handle file uploads
-app.post('/upload', upload.single('file'), (req, res) => {
-    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-
-    const roomId = req.body.roomId;
-    if (!roomId) return res.status(400).json({ error: 'Missing room ID' });
-
-    const fileUrl = `/PRO/${req.file.filename}`;
-    
-    const fileData = {
-        sender: "Anonymous",
-        files: fileUrl,
-        fileName: req.file.originalname,
-        timestamp: format12Hour(Date.now())
-    };
-
-    saveMessage(roomId, fileData);
-    io.to(roomId).emit('private message', fileData);
-
-    res.json({ fileUrl });
-});
 
 // Helper function to format timestamps in 12-hour format
 function format12Hour(timestamp) {
@@ -89,9 +67,33 @@ function saveMessage(roomId, messageData) {
     fs.writeFileSync(filePath, JSON.stringify(messages, null, 2));
 }
 
+// Handle file uploads
+app.post('/upload', upload.single('file'), (req, res) => {
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+    const roomId = req.body.roomId;
+    if (!roomId) return res.status(400).json({ error: 'Missing room ID' });
+
+    const fileUrl = `/PRO/${req.file.filename}`;
+    
+    const fileData = {
+        sender: "Anonymous",
+        files: fileUrl,
+        fileName: req.file.originalname,
+        timestamp: format12Hour(Date.now())
+    };
+
+    saveMessage(roomId, fileData);
+    io.to(roomId).emit('private message', fileData);
+
+    res.json({ fileUrl });
+});
+
+// Socket.IO events
 io.on('connection', (socket) => {
     console.log('A user connected.');
 
+    // Create a private room
     socket.on('create private', (data) => {
         const { roomId } = data;
         const filePath = getRoomFilePath(roomId);
@@ -101,6 +103,7 @@ io.on('connection', (socket) => {
         }
     });
 
+    // Join a private room
     socket.on('join private', (data) => {
         const { roomId, username } = data;
         socket.join(roomId);
@@ -112,6 +115,7 @@ io.on('connection', (socket) => {
         io.to(roomId).emit('room joined', { roomId });
     });
 
+    // Send a private message
     socket.on('private message', (data) => {
         const { roomId, sender, message } = data;
         const timestamp = format12Hour(Date.now());
@@ -122,9 +126,15 @@ io.on('connection', (socket) => {
         io.to(roomId).emit('private message', messageData);
     });
 
+    // Disconnect event
     socket.on('disconnect', () => {
         console.log('A user disconnected');
     });
+});
+
+// Start the server
+server.listen(3000, () => {
+    console.log('Server running on port 3000');
 });
 
 server.listen(3000, () => {
